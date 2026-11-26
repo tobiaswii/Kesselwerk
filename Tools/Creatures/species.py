@@ -42,9 +42,13 @@ def head_parts(body, s, m, head, head_r, snout_tip=None, snout_r=0.08, chest=Non
     parts = []
     # Augen
     eye_s = head_r * s.get("eye", 0.36)
-    for sx in (-1, 1):
-        ec, n = surface(body, head, V((sx * s.get("eye_spread", 0.55), -1, s.get("eye_up", 0.12))), embed=eye_s * 0.22)
-        parts += anime_eye(f"Auge{sx}", ec, n, eye_s, hexc(s.get("iris", "#3a7bd5")))
+    if s.get("cyclops"):
+        ec, n = surface(body, head, V((0, -1, s.get("eye_up", 0.15))), embed=eye_s * 0.35)
+        parts += anime_eye("Auge0", ec, n, eye_s * 1.6, hexc(s.get("iris", "#3a7bd5")))
+    else:
+        for sx in (-1, 1):
+            ec, n = surface(body, head, V((sx * s.get("eye_spread", 0.55), -1, s.get("eye_up", 0.12))), embed=eye_s * 0.22)
+            parts += anime_eye(f"Auge{sx}", ec, n, eye_s, hexc(s.get("iris", "#3a7bd5")))
     # Nase / Schnabel / Mund
     if beak:
         bl = s.get("beak_len", head_r * 0.7)
@@ -116,6 +120,20 @@ def head_parts(body, s, m, head, head_r, snout_tip=None, snout_r=0.08, chest=Non
             f = leaf(f"Kamm{k}", head_r * (0.9 - k * 0.12), head_r * 0.4, 0.03, 0.05, m.acc, tip_bend=0.2)
             fp, _ = surface(body, head, V((0, 0.2 + k * 0.45, 1)), embed=0.03)
             place(f, fp, rot=(math.radians(-30 - k * 18), 0, 0)); parts.append(f)
+    elif acc == "cap":
+        cp, _ = surface(body, head, V((0, 0.05, 1)), embed=head_r * 0.25)
+        cap = sphere("Hut", 1, m.acc, 32, 16); place(cap, cp + V((0, 0.03, head_r * 0.02)), scale=(head_r * 1.5, head_r * 1.4, head_r * 0.55)); parts.append(cap)
+        for k in range(6):
+            a = k / 6 * math.tau
+            dot = sphere(f"Tupfen{k}", 1, m.belly, 12, 8)
+            place(dot, cp + V((math.cos(a) * head_r * 0.9, math.sin(a) * head_r * 0.85, head_r * 0.24)), scale=(head_r * 0.2, head_r * 0.2, head_r * 0.1)); parts.append(dot)
+    elif acc == "antenna":
+        for sx in (-1, 1):
+            an = horn(f"Fuehler{sx}", head_r * 0.9, head_r * 0.06, -0.3, segs=6, material=m.dark)
+            ap, _ = surface(body, head, V((sx * 0.4, 0.1, 1)), embed=0.01)
+            place(an, ap, rot=(math.radians(-15), math.radians(sx * 25), 0)); parts.append(an)
+            tip = sphere(f"FuehlerKopf{sx}", 1, m.glow, 12, 8)
+            place(tip, ap + V((sx * head_r * 0.38, head_r * 0.1, head_r * 0.82)), scale=(head_r * 0.13,) * 3); parts.append(tip)
     elif acc == "crystal":
         for k in range(3):
             cr = horn(f"KopfKristall{k}", head_r * (0.8 if k == 1 else 0.5), head_r * 0.13, 0.0, segs=6, material=m.glow, rings=2)
@@ -556,16 +574,33 @@ def build_floater(s):
     m = M(s)
     br = s.get("body_r", 0.26); head_r = s.get("head_r", 0.0); H = s.get("hover_h", 0.55)
     c = V((0, 0, H))
+    shape = s.get("shape", "ghost")
+    if shape == "slime":
+        H = br * 0.62; c = V((0, 0, H))
     b = Blob("Koerper")
-    b.ball(c, br, (1.0, 0.95, 1.1))
+    b.ball(c, br, (1.35, 1.25, 0.78) if shape == "slime" else (1.0, 0.95, 1.1))
     head = c + V((0, -0.02, br * 0.6)); hr = head_r if head_r > 0 else br * 0.85
     if head_r > 0: b.ball(head, head_r, (1, 1, 1))
-    tail_pts = [c + V((0, 0.03, -br * 0.4)), c + V((0, 0.12, -br * 1.0)), c + V((0, 0.24, -br * 1.45)), c + V((0, 0.34, -br * 1.7))]
-    b.chain(tail_pts, [br * 0.75, br * 0.45, br * 0.25, br * 0.1])
+    if shape == "slime":
+        b.ball(c + V((0, 0.05, br * 0.75)), br * 0.35, (1, 1, 1.2))  # Tropfenspitze
+        tail_pts = [c + V((0, 0.02, -br * 0.2)), c + V((0, 0.06, -br * 0.35)), c + V((0, 0.1, -br * 0.45)), c + V((0, 0.14, -br * 0.5))]
+    else:
+        tail_pts = [c + V((0, 0.03, -br * 0.4)), c + V((0, 0.12, -br * 1.0)), c + V((0, 0.24, -br * 1.45)), c + V((0, 0.34, -br * 1.7))]
+        if s.get("tentacles"):
+            n = s["tentacles"]
+            for k in range(n):
+                ang = k / n * math.tau
+                d = V((math.cos(ang), math.sin(ang), 0))
+                pts = [c + d * br * 0.5 + V((0, 0, -br * 0.4)), c + d * br * 0.8 + V((0, 0, -br * 0.9)), c + d * br * 1.05 + V((0, 0, -br * 1.35)), c + d * br * 1.25 + V((0, 0, -br * 1.55))]
+                b.chain(pts, [br * 0.3, br * 0.22, br * 0.15, br * 0.08])
+        else:
+            b.chain(tail_pts, [br * 0.75, br * 0.45, br * 0.25, br * 0.1])
     arms = {}
     for side, sx in (("L", 1), ("R", -1)):
         a0 = c + V((sx * br * 0.85, -0.03, -br * 0.05)); a1 = a0 + V((sx * br * 0.45, -0.05, -br * 0.3))
-        b.chain([a0, a1], [br * 0.28, br * 0.18]); arms[side] = (a0, a1)
+        if s.get("arms", True) and shape != "slime":
+            b.chain([a0, a1], [br * 0.28, br * 0.18])
+        arms[side] = (a0, a1)
     body = b.to_mesh(voxel=s.get("voxel", 0.016))
     zones = [(m.belly, tuple(c + V((0, -br * 0.7, -br * 0.15))), (br * 0.65, br * 0.45, br * 0.6)),
              (m.glow if s.get("tail_glow", True) else m.acc, tuple(tail_pts[-1]), (br * 0.6, br * 0.9, br * 0.9))]
@@ -573,7 +608,8 @@ def build_floater(s):
     s2 = dict(s); s2.setdefault("ears", "none"); s2.setdefault("tufts", False); s2.setdefault("eye", 0.42)
     parts = head_parts(body, s2, m, head if head_r > 0 else c + V((0, 0, br * 0.25)), hr, None, 0.08, None, br)
     parts += body_accents(body, s2, m, c + V((0, br * 0.3, br * 0.4)), back_dir=V((0, 0.6, 1)), span=br * 0.9, count=s.get("back_n", 3))
-    apply_tf(parts)
+    wing_parts = wings(body, s, m, c + V((0, br * 0.3, br * 0.3)), s.get("wing_span", br * 1.8), s.get("wing_chord", br * 1.2), s.get("wing_kind", "bat")) if s.get("wings") else []
+    apply_tf(parts + wing_parts)
     rig = Rig()
     rig.bone("Root", (0, 0, 0), (0, 0, 0.25), deform=False)
     rig.bone("Body", c + V((0, 0, -br * 0.3)), c + V((0, 0, br * 0.5)), "Root")
@@ -582,8 +618,12 @@ def build_floater(s):
         rig.bone(f"Arm{side}1", *arms[side], "Body")
     for i in range(3):
         rig.bone(f"Tail{i}", tail_pts[i], tail_pts[i + 1], "Body" if i == 0 else f"Tail{i - 1}")
+    for w in wing_parts:
+        sx = w["side"]; base = c + V((sx * br * 0.6, br * 0.3, br * 0.3))
+        rig.bone("WingL" if sx > 0 else "WingR", base, base + V((0, -0.15, 0)), "Body")
     rig.build()
-    skin(body, rig)
+    skin(body, rig, bones=[x[0] for x in rig.bones if x[4] and not x[0].startswith("Wing")])
+    for w in wing_parts: skin(w, rig, rigid="WingL" if w["side"] > 0 else "WingR")
     for p in parts:
         skin(p, rig, rigid="Body" if p.name.startswith(("Stachel", "Kristall", "RFlamme", "RBlatt", "Panzer")) else "Head")
     a = Anim(rig.obj, "Idle", 50)
@@ -591,6 +631,7 @@ def build_floater(s):
     a.curve("Body", lambda t: ((0, 0, 4 * sin(t)), None, (1 + 0.04 * sin(t), 1 + 0.04 * sin(t), 1 - 0.03 * sin(t))), scl=True)
     for i in range(3): a.curve(f"Tail{i}", lambda t, i=i: ((0, 0, 20 * sin(t - 0.15 * i)), None, None))
     a.curve("ArmL1", lambda t: ((0, 15 * sin(t), 0), None, None)); a.curve("ArmR1", lambda t: ((0, -15 * sin(t), 0), None, None))
+    if wing_parts: wing_flap(a, 50, 35, 4)
     a.done()
     a = Anim(rig.obj, "Walk", 30)
     a.curve("Root", lambda t: ((0, 0, 0), (0, 0.06 * sin(t), 0), None), loc=True)
@@ -607,8 +648,8 @@ def build_floater(s):
     a.key("ArmL1", 0, rot=(0, 0, 0)); a.key("ArmL1", 14, rot=(0, -70, 0)); a.key("ArmL1", 34, rot=(0, 0, 0))
     a.key("ArmR1", 0, rot=(0, 0, 0)); a.key("ArmR1", 14, rot=(0, 70, 0)); a.key("ArmR1", 34, rot=(0, 0, 0))
     a.done()
-    hit_die_dance(rig.obj, False, legs=(), fall_axis=0)
-    return rig, [finalize([body] + parts, rig)]
+    hit_die_dance(rig.obj, bool(wing_parts), legs=(), fall_axis=0)
+    return rig, [finalize([body] + parts + wing_parts, rig)]
 
 
 BUILDERS = {"quad": build_quad, "biped": build_biped, "bird": build_bird, "floater": build_floater}
