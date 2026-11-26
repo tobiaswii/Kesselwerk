@@ -439,6 +439,7 @@ def hit_die_dance(r, has_w, legs=(), tail=False, fall_axis=2):
     if tail and "Tail0" in r.pose.bones: a.curve("Tail0", lambda t: ((0, 0, 30 * sin(2 * t)), None, None))
     if has_w: wing_flap(r and a, 30, 40, 2)
     a.done()
+    extra_anims(r, has_w)
     r.animation_data.action = bpy.data.actions["Idle"]
 
 
@@ -570,6 +571,56 @@ def biped_anims(r, has_w):
     if has_w: wing_flap(a, 34, 45, 2)
     a.done()
     hit_die_dance(r, has_w, legs=(), fall_axis=0)
+
+
+def extra_anims(r, has_w):
+    """Zusätzliche Clips für Attacken: Kraft sammeln, Brüllen, Sprungangriff."""
+    B = r.pose.bones
+    core = "Hips" if "Hips" in B else "Body"
+    chest = "Chest" if "Chest" in B else core
+    arms = [x for x in ("ArmL1", "ArmR1") if x in B]
+    front = [x for x in ("LegLV1", "LegRV1") if x in B]
+    # Kraft sammeln: aufrichten, Arme/Flügel hoch, kurz schweben, leuchtend pulsieren
+    a = Anim(r, "Cast", 40)
+    a.key("Root", 0, loc=(0, 0, 0)); a.key("Root", 14, loc=(0, 0.16, -0.04)); a.key("Root", 30, loc=(0, 0.2, -0.04)); a.key("Root", 40, loc=(0, 0, 0))
+    a.key(chest, 0, rot=(0, 0, 0), scl=(1, 1, 1)); a.key(chest, 14, rot=(-22, 0, 0), scl=(1.1, 1.1, 1.1)); a.key(chest, 22, scl=(1.04, 1.04, 1.04)); a.key(chest, 30, rot=(-22, 0, 0), scl=(1.12, 1.12, 1.12)); a.key(chest, 40, rot=(0, 0, 0), scl=(1, 1, 1))
+    a.key("Head", 0, rot=(0, 0, 0)); a.key("Head", 14, rot=(-28, 0, 0)); a.key("Head", 30, rot=(-24, 0, 0)); a.key("Head", 40, rot=(0, 0, 0))
+    for i, x in enumerate(arms):
+        sg = -1 if x.startswith("ArmL") else 1
+        a.key(x, 0, rot=(0, 0, 0)); a.key(x, 14, rot=(-145, 0, sg * 25)); a.key(x, 30, rot=(-150, 0, sg * 35)); a.key(x, 40, rot=(0, 0, 0))
+    for x in front:
+        a.key(x, 0, rot=(0, 0, 0)); a.key(x, 14, rot=(-40, 0, 0)); a.key(x, 30, rot=(-45, 0, 0)); a.key(x, 40, rot=(0, 0, 0))
+    if has_w:
+        a.key("WingL", 0, rot=(0, 0, 0)); a.key("WingL", 14, rot=(0, -70, 0)); a.key("WingL", 22, rot=(0, -50, 0)); a.key("WingL", 30, rot=(0, -75, 0)); a.key("WingL", 40, rot=(0, 0, 0))
+        a.key("WingR", 0, rot=(0, 0, 0)); a.key("WingR", 14, rot=(0, 70, 0)); a.key("WingR", 22, rot=(0, 50, 0)); a.key("WingR", 30, rot=(0, 75, 0)); a.key("WingR", 40, rot=(0, 0, 0))
+    if "Tail0" in B: a.key("Tail0", 0, rot=(0, 0, 0)); a.key("Tail0", 14, rot=(-35, 0, 0)); a.key("Tail0", 40, rot=(0, 0, 0))
+    a.done()
+    # Brüllen: Kopf zurück, dann nach vorn stoßen und zittern
+    a = Anim(r, "Roar", 36)
+    a.key("Root", 0, loc=(0, 0, 0)); a.key("Root", 10, loc=(0, 0, -0.08)); a.key("Root", 15, loc=(0, 0, 0.1)); a.key("Root", 36, loc=(0, 0, 0))
+    a.key(chest, 0, rot=(0, 0, 0), scl=(1, 1, 1)); a.key(chest, 10, rot=(-18, 0, 0), scl=(1.1, 1.1, 1.1)); a.key(chest, 15, rot=(12, 0, 0), scl=(1.16, 1.16, 1.16)); a.key(chest, 28, rot=(10, 0, 0), scl=(1.1, 1.1, 1.1)); a.key(chest, 36, rot=(0, 0, 0), scl=(1, 1, 1))
+    a.key("Head", 0, rot=(0, 0, 0)); a.key("Head", 10, rot=(-35, 0, 0))
+    for k, f in enumerate(range(15, 30, 3)): a.key("Head", f, rot=(18, 0, 6 if k % 2 else -6))
+    a.key("Head", 36, rot=(0, 0, 0))
+    for x in arms:
+        sg = -1 if x.startswith("ArmL") else 1
+        a.key(x, 0, rot=(0, 0, 0)); a.key(x, 10, rot=(-40, 0, sg * 50)); a.key(x, 15, rot=(-20, 0, sg * 70)); a.key(x, 36, rot=(0, 0, 0))
+    if has_w: wing_flap(a, 36, 40, 3)
+    if "Tail0" in B: a.curve("Tail0", lambda t: ((-20 * abs(sin(t)), 0, 25 * sin(3 * t)), None, None))
+    a.done()
+    # Sprungangriff: abheben, in der Luft ausholen, aufschlagen
+    a = Anim(r, "Slam", 32)
+    a.key("Root", 0, loc=(0, 0, 0)); a.key("Root", 4, loc=(0, -0.04, 0)); a.key("Root", 12, loc=(0, 0.5, 0.15)); a.key("Root", 17, loc=(0, -0.05, 0.25)); a.key("Root", 32, loc=(0, 0, 0))
+    a.key(core, 0, rot=(0, 0, 0)); a.key(core, 4, rot=(10, 0, 0)); a.key(core, 12, rot=(-28, 0, 0)); a.key(core, 17, rot=(22, 0, 0)); a.key(core, 32, rot=(0, 0, 0))
+    a.key("Head", 0, rot=(0, 0, 0)); a.key("Head", 12, rot=(-15, 0, 0)); a.key("Head", 17, rot=(25, 0, 0)); a.key("Head", 32, rot=(0, 0, 0))
+    for x in arms:
+        a.key(x, 0, rot=(0, 0, 0)); a.key(x, 12, rot=(-165, 0, 0)); a.key(x, 17, rot=(70, 0, 0)); a.key(x, 32, rot=(0, 0, 0))
+    for x in front:
+        a.key(x, 0, rot=(0, 0, 0)); a.key(x, 12, rot=(-60, 0, 0)); a.key(x, 17, rot=(45, 0, 0)); a.key(x, 32, rot=(0, 0, 0))
+    if has_w:
+        a.key("WingL", 0, rot=(0, 0, 0)); a.key("WingL", 12, rot=(0, -75, 0)); a.key("WingL", 17, rot=(0, 60, 0)); a.key("WingL", 32, rot=(0, 0, 0))
+        a.key("WingR", 0, rot=(0, 0, 0)); a.key("WingR", 12, rot=(0, 75, 0)); a.key("WingR", 17, rot=(0, -60, 0)); a.key("WingR", 32, rot=(0, 0, 0))
+    a.done()
 
 
 # ===========================================================================

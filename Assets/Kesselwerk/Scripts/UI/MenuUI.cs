@@ -94,7 +94,7 @@ namespace Kesselwerk
 
         TextMeshProUGUI Currency(RectTransform row, int i, string name, Color c)
         {
-            var bg = UIKit.Img(row, name, UIKit.Rounded, new Color(0f, 0f, 0f, 0.55f));
+            var bg = UIKit.GlassPanel(row, name, null, 0.7f);
             bg.rectTransform.anchorMin = bg.rectTransform.anchorMax = new Vector2(0f, 0.5f);
             bg.rectTransform.pivot = new Vector2(0f, 0.5f);
             bg.rectTransform.anchoredPosition = new Vector2(i * 190f, 0f);
@@ -212,30 +212,43 @@ namespace Kesselwerk
 
         void BuildHome()
         {
+            // Logo oben links: weiß, weit gesperrt, mit Akzentlinie und Unterzeile
             var title = UIKit.Rect("Titel", page);
-            if (P) UIKit.Anchor(title, 0f, 0.74f, 1f, 0.95f); else UIKit.Anchor(title, 0f, 0.62f, 0.55f, 0.95f);
+            if (P) UIKit.Anchor(title, 0.05f, 0.8f, 0.95f, 0.95f); else UIKit.Anchor(title, 0.03f, 0.72f, 0.5f, 0.95f);
             title.offsetMin = title.offsetMax = Vector2.zero;
-            var t = UIKit.Text(title, "Logo", "KESSELWERK", 120f, UX.Gold, TextAlignmentOptions.Center, true);
-            UIKit.Stretch(t.rectTransform, 0, 60, 0, 0);
-            t.enableAutoSizing = true; t.fontSizeMin = 40; t.fontSizeMax = 130;
-            UX.Outline(t, 0.3f);
-            var sub = UIKit.Text(title, "Untertitel", "Monster sammeln · Team aufstellen · Automatisch kämpfen", 34f, Color.white, TextAlignmentOptions.Bottom);
-            UIKit.Stretch(sub.rectTransform, 0, 0, 0, 0);
-            UX.Outline(sub);
+            var glow = UIKit.Img(title, "Schein", UIKit.Glow, new Color(0.3f, 0.7f, 1f, 0.18f));
+            UIKit.Stretch(glow.rectTransform, -80, -40, 40, -10);
+            var t = UIKit.Text(title, "Logo", "KESSELWERK", 110f, Color.white, P ? TextAlignmentOptions.Center : TextAlignmentOptions.Left, true);
+            UIKit.Stretch(t.rectTransform, 0, 70, 0, 0);
+            t.enableAutoSizing = true; t.fontSizeMin = 40; t.fontSizeMax = 118;
+            t.characterSpacing = 8f;
+            t.fontStyle = FontStyles.Bold | FontStyles.Italic;
+            t.colorGradient = new VertexGradient(Color.white, Color.white, new Color(0.7f, 0.88f, 1f), new Color(0.7f, 0.88f, 1f));
+            UX.Outline(t, 0.12f);
+            var line = UIKit.Img(title, "Linie", UIKit.HGradient, new Color(1f, 0.78f, 0.3f, 0.95f));
+            line.rectTransform.anchorMin = new Vector2(P ? 0.2f : 0f, 0f); line.rectTransform.anchorMax = new Vector2(P ? 0.8f : 0.8f, 0f);
+            line.rectTransform.pivot = new Vector2(0f, 0f); line.rectTransform.anchoredPosition = new Vector2(0f, 60f);
+            line.rectTransform.sizeDelta = new Vector2(0f, 4f);
+            var sub = UIKit.Text(title, "Untertitel", "SAMMELN  ·  AUFSTELLEN  ·  KÄMPFEN", 24f, new Color(1f, 0.85f, 0.55f), P ? TextAlignmentOptions.Bottom : TextAlignmentOptions.BottomLeft, true);
+            UIKit.Stretch(sub.rectTransform, 2, 14, 0, 0);
+            sub.characterSpacing = 6f;
+            sub.textWrappingMode = TextWrappingModes.NoWrap;
+            sub.enableAutoSizing = true; sub.fontSizeMin = 12; sub.fontSizeMax = 24;
+            UX.Outline(sub, 0.15f);
 
             var col = UIKit.Rect("Knoepfe", page);
-            if (P) UIKit.Anchor(col, 0.06f, 0.02f, 0.94f, 0.42f); else UIKit.Anchor(col, 0.62f, 0.06f, 0.97f, 0.92f);
+            if (P) UIKit.Anchor(col, 0.05f, 0.02f, 0.95f, 0.42f); else UIKit.Anchor(col, 0.03f, 0.05f, 0.33f, 0.68f);
             col.offsetMin = col.offsetMax = Vector2.zero;
 
             var entries = new (string, Color, MenuPage?, System.Action)[]
             {
-                ("Kampagne", UX.Accent, MenuPage.Campaign, null),
-                ("Beschwören", new Color(0.55f, 0.3f, 0.85f), MenuPage.Summon, null),
-                ("Sammlung", UX.Blue, MenuPage.Collection, null),
-                ("Team", UX.Green, MenuPage.Team, null),
-                ("Aufgaben", new Color(0.75f, 0.45f, 0.2f), null, ShowTasks),
-                ("Arena (Online)", new Color(0.75f, 0.25f, 0.3f), MenuPage.Arena, null),
-                ("Einstellungen", new Color(0.3f, 0.32f, 0.4f), MenuPage.Settings, null),
+                ("Kampagne", new Color(1f, 0.7f, 0.25f), MenuPage.Campaign, null),
+                ("Beschwören", new Color(0.75f, 0.5f, 1f), MenuPage.Summon, null),
+                ("Sammlung", new Color(0.45f, 0.75f, 1f), MenuPage.Collection, null),
+                ("Team", new Color(0.4f, 0.9f, 0.55f), MenuPage.Team, null),
+                ("Aufgaben", new Color(1f, 0.55f, 0.35f), null, ShowTasks),
+                ("Arena  ·  Online", new Color(1f, 0.4f, 0.45f), MenuPage.Arena, null),
+                ("Einstellungen", new Color(0.65f, 0.7f, 0.78f), MenuPage.Settings, null),
             };
             int cols = P ? 2 : 1;
             int rows = Mathf.CeilToInt(entries.Length / (float)cols);
@@ -243,13 +256,25 @@ namespace Kesselwerk
             {
                 var e = entries[i];
                 int cx = i % cols, cy = i / cols;
-                var b = Btn(col, e.Item1, e.Item2, () => { if (e.Item3.HasValue) Show(e.Item3.Value); else e.Item4(); }, P ? 46f : 42f);
+                var b = Btn(col, e.Item1.ToUpperInvariant(), e.Item2, () => { if (e.Item3.HasValue) Show(e.Item3.Value); else e.Item4(); }, P ? 40f : 34f);
                 var rt = (RectTransform)b.transform;
                 float w = 1f / cols, h = 1f / rows;
                 rt.anchorMin = new Vector2(cx * w, 1f - (cy + 1) * h);
                 rt.anchorMax = new Vector2((cx + 1) * w, 1f - cy * h);
-                rt.offsetMin = new Vector2(10f, 8f);
-                rt.offsetMax = new Vector2(-10f, -8f);
+                rt.offsetMin = new Vector2(8f, 6f);
+                rt.offsetMax = new Vector2(-8f, -6f);
+                var label = b.GetComponentInChildren<TextMeshProUGUI>();
+                label.alignment = TextAlignmentOptions.MidlineLeft;
+                label.rectTransform.offsetMin = new Vector2(86f, 4f);
+                label.characterSpacing = 4f;
+                var num = UIKit.Text(label.transform.parent, "Nr", (i + 1).ToString("00"), 22f, new Color(e.Item2.r, e.Item2.g, e.Item2.b, 0.9f), TextAlignmentOptions.MidlineLeft, true);
+                num.rectTransform.anchorMin = new Vector2(0f, 0f); num.rectTransform.anchorMax = new Vector2(0f, 1f);
+                num.rectTransform.pivot = new Vector2(0f, 0.5f);
+                num.rectTransform.anchoredPosition = new Vector2(28f, 0f); num.rectTransform.sizeDelta = new Vector2(50f, 0f);
+                var arrow = UIKit.Text(label.transform.parent, "Pfeil", "›", 44f, new Color(1f, 1f, 1f, 0.5f), TextAlignmentOptions.MidlineRight, true);
+                arrow.rectTransform.anchorMin = new Vector2(1f, 0f); arrow.rectTransform.anchorMax = new Vector2(1f, 1f);
+                arrow.rectTransform.pivot = new Vector2(1f, 0.5f);
+                arrow.rectTransform.anchoredPosition = new Vector2(-22f, 2f); arrow.rectTransform.sizeDelta = new Vector2(40f, 0f);
             }
 
             int open = 0;
@@ -334,7 +359,7 @@ namespace Kesselwerk
                 var rt = (RectTransform)node.transform;
                 float size = s.boss ? 150f : s.elite ? 130f : 115f;
                 UIKit.Place(rt, new Vector2(x, y), Vector2.zero, new Vector2(size, size));
-                node.GetComponent<Image>().sprite = UIKit.Circle;
+                UIKit.Round(node, c);
                 if (i == selectedStage)
                 {
                     var ring = UIKit.Img(path, "Auswahl", UIKit.Glow, new Color(1f, 0.9f, 0.4f, 0.9f));
@@ -753,7 +778,20 @@ namespace Kesselwerk
             sb.Append($"<color={Look.Hex(Look.ElementColor(d.element))}>{d.element}</color>  ·  <color={Look.Hex(Look.RarityColor(d.rarity))}>{Look.RarityName(d.rarity)}</color>  ·  {Look.RoleName(d.role)}  ·  {(d.ranged ? "Fernkampf" : "Nahkampf")}\n");
             if (oc != null) sb.Append($"Stufe <b>{oc.level}</b>/{Stats.MaxLevel(oc.stars)}  <color=#ffd23f>{Look.Stars(oc.stars)}</color>  ·  Kopien {oc.copies}  ·  Entwicklung {oc.stage + 1}/{d.MaxStage + 1}\n");
             sb.Append($"<size=90%>Leben <b>{Stats.Hp(d, spec)}</b>   Angriff <b>{Stats.Atk(d, spec)}</b>   Verteidigung <b>{Stats.Def(d, spec)}</b>   Tempo <b>{Stats.Spd(d, spec)}</b>   Krit <b>{d.crit * 100f:0}%</b></size>\n\n");
-            sb.Append($"<color=#ffd23f><b>Spezial: {d.skill.name}</b></color>\n<size=90%>{d.skill.text}</size>\n");
+            if (oc != null)
+            {
+                var pool = MoveDb.PoolFor(d);
+                var eqm = Progress.EquippedMoves(oc);
+                var names = new List<string>();
+                foreach (int mi in eqm) names.Add($"{pool[mi].move.name} <color=#ffd23f>{MoveDb.RankName(MoveDb.Rank(oc.level, pool[mi].unlock))}</color>");
+                sb.Append($"<color=#ffd23f><b>Attacken:</b></color> {string.Join("  ·  ", names)}\n");
+            }
+            else
+            {
+                var names = new List<string>();
+                foreach (var pm in MoveDb.PoolFor(d)) names.Add(pm.move.name);
+                sb.Append($"<color=#ffd23f><b>Attacken:</b></color> <size=90%>{string.Join(", ", names)}</size>\n");
+            }
             if (d.passive != Passive.Keine) sb.Append($"<color=#9fd3ff><b>Passiv</b></color>\n<size=90%>{CreatureDef.PassiveText(d.passive)}</size>\n");
             var strong = ElementChart.StrongAgainst(d.element);
             var sn = new List<string>();
@@ -785,8 +823,17 @@ namespace Kesselwerk
                 gearRow.pivot = new Vector2(0.5f, 0f);
                 gearRow.anchoredPosition = new Vector2(0f, 258f);
                 gearRow.sizeDelta = new Vector2(-40f, 78f);
-                for (int gi = 0; gi < 3; gi++)
+                for (int gi = 0; gi < 4; gi++)
                 {
+                    if (gi == 3)
+                    {
+                        int free = 0; foreach (var pm in MoveDb.PoolFor(d)) if (oc.level >= pm.unlock) free++;
+                        var mb = Btn(gearRow, $"<size=70%>Attacken</size>\n<color=#ffd23f>{free}/{MoveDb.PoolFor(d).Length} frei</color>", new Color(0.42f, 0.22f, 0.12f), () => ShowMovePicker(d), 26f);
+                        var mrt = (RectTransform)mb.transform;
+                        UIKit.Anchor(mrt, 0.75f, 0f, 1f, 1f);
+                        mrt.offsetMin = new Vector2(6f, 0f); mrt.offsetMax = new Vector2(-6f, 0f);
+                        continue;
+                    }
                     var slot = (GearSlot)gi;
                     int uid = slot == GearSlot.Waffe ? oc.weaponUid : slot == GearSlot.Ruestung ? oc.armorUid : oc.amuletUid;
                     var g = D.GetGear(uid);
@@ -795,7 +842,7 @@ namespace Kesselwerk
                         : $"<size=70%>{GearDef.SlotName(slot)}</size>\n<color=#9aa>– leer –</color>";
                     var gb = Btn(gearRow, label, new Color(0.18f, 0.2f, 0.28f), () => ShowGearPicker(d, slot), 26f);
                     var grt = (RectTransform)gb.transform;
-                    UIKit.Anchor(grt, gi / 3f, 0f, (gi + 1) / 3f, 1f);
+                    UIKit.Anchor(grt, gi / 4f, 0f, (gi + 1) / 4f, 1f);
                     grt.offsetMin = new Vector2(6f, 0f);
                     grt.offsetMax = new Vector2(-6f, 0f);
                 }
@@ -828,6 +875,117 @@ namespace Kesselwerk
 
             var close = Btn(panel.transform, "Schließen", UX.Grey, () => { overlay.gameObject.SetActive(false); detailDef = null; mm.HidePreview(); Show(MenuPage.Collection); }, 34f);
             UIKit.Place((RectTransform)close.transform, new Vector2(0.5f, 0f), new Vector2(0f, 50f), new Vector2(300f, 80f));
+        }
+
+
+        public void DebugMovePicker(CreatureDef d) { ShowDetail(d); ShowMovePicker(d); }
+
+        static string MoveValue(MoveDef m, int rank)
+        {
+            var sk = MoveDb.Scaled(m, Mathf.Max(1, rank));
+            int pct = Mathf.RoundToInt(sk.power * 100f);
+            switch (m.kind)
+            {
+                case SkillKind.HealLowest: case SkillKind.HealAll: return $"Heilung {pct} % Angriff";
+                case SkillKind.ShieldAll: return $"Schild {pct} % Angriff";
+                case SkillKind.Taunt: return $"Schild {Mathf.RoundToInt(sk.power * 25f)} % Leben";
+                case SkillKind.BuffAttack: return $"+{pct} % Angriff";
+                case SkillKind.DebuffDefense: return $"−{pct} % Verteidigung";
+                default: return $"Schaden {pct} % Angriff";
+            }
+        }
+
+        static string TargetText(SkillKind k)
+        {
+            switch (k)
+            {
+                case SkillKind.AllEnemies: case SkillKind.Poison: case SkillKind.DebuffDefense: return "alle Gegner";
+                case SkillKind.BackLine: return "hintere Reihe";
+                case SkillKind.Chain: return "bis zu 3 Gegner";
+                case SkillKind.Cleave: return "Ziel + Nachbarn";
+                case SkillKind.HealAll: case SkillKind.ShieldAll: case SkillKind.BuffAttack: return "alle Verbündeten";
+                case SkillKind.HealLowest: return "schwächster Verbündeter";
+                case SkillKind.Taunt: return "selbst";
+                default: return "ein Gegner";
+            }
+        }
+
+        /// <summary>Attacken einer Kreatur: zwei davon mitnehmen, Rang wächst mit der Stufe.</summary>
+        void ShowMovePicker(CreatureDef d)
+        {
+            var oc = D.Get(d.id);
+            if (oc == null) return;
+            UX.Clear(overlay);
+            overlay.gameObject.SetActive(true);
+            var dim = UIKit.Img(overlay, "Abdunkeln", null, new Color(0f, 0f, 0f, 0.7f));
+            UIKit.Stretch(dim.rectTransform);
+            dim.raycastTarget = true;
+            var panel = UX.Panel(overlay, "Attacken", new Color(0.07f, 0.06f, 0.1f, 0.97f));
+            UIKit.Place(panel.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, P ? new Vector2(1000f, 1500f) : new Vector2(1300f, 900f));
+            UX.Frame(panel, new Color(1f, 0.75f, 0.3f), 3f);
+            Heading(panel.transform, $"Attacken von {oc.Name}", 44f).rectTransform.anchoredPosition = new Vector2(0f, -20f);
+            var info = UIKit.Text(panel.transform, "Hinweis", $"Wähle <b>{MoveDb.Equip}</b> Attacken – sie wechseln sich im Kampf ab. Alle {MoveDb.LevelsPerRank} Stufen steigt eine Attacke im Rang (bis V) und wird stärker.", 24f, new Color(1f, 1f, 1f, 0.8f), TextAlignmentOptions.Top);
+            info.rectTransform.anchorMin = new Vector2(0f, 1f);
+            info.rectTransform.anchorMax = new Vector2(1f, 1f);
+            info.rectTransform.pivot = new Vector2(0.5f, 1f);
+            info.rectTransform.anchoredPosition = new Vector2(0f, -80f);
+            info.rectTransform.sizeDelta = new Vector2(-60f, 70f);
+
+            var pool = MoveDb.PoolFor(d);
+            var eq = new List<int>(Progress.EquippedMoves(oc));
+            var area = UIKit.Rect("Liste", panel.transform);
+            UIKit.Stretch(area, 30, 170, 30, 130);
+            MakeScroll(area, out var content);
+            float rowH = P ? 230f : 160f;
+            content.sizeDelta = new Vector2(0f, pool.Length * (rowH + 12f) + 12f);
+            for (int i = 0; i < pool.Length; i++)
+            {
+                int idx = i;
+                var pm = pool[i];
+                var m = pm.move;
+                bool unlocked = oc.level >= pm.unlock;
+                bool on = eq.Contains(i);
+                int rank = MoveDb.Rank(oc.level, pm.unlock);
+                Color ec = Look.ElementColor(d.element);
+                var row = UIKit.Img(content, "Attacke", UIKit.Rounded,
+                    on ? new Color(0.35f, 0.22f, 0.08f, 0.95f) : unlocked ? new Color(1f, 1f, 1f, 0.07f) : new Color(0f, 0f, 0f, 0.35f));
+                row.rectTransform.anchorMin = new Vector2(0f, 1f);
+                row.rectTransform.anchorMax = new Vector2(1f, 1f);
+                row.rectTransform.pivot = new Vector2(0.5f, 1f);
+                row.rectTransform.anchoredPosition = new Vector2(0f, -12f - i * (rowH + 12f));
+                row.rectTransform.sizeDelta = new Vector2(-20f, rowH);
+                if (on) UX.Frame(row, new Color(1f, 0.78f, 0.3f), 3f);
+
+                // Rang-Abzeichen
+                var badge = UIKit.Img(row.transform, "Rang", UIKit.Rounded, unlocked ? ec * 0.85f : new Color(0.3f, 0.3f, 0.35f));
+                UIKit.Place(badge.rectTransform, new Vector2(0f, 0.5f), new Vector2(64f, 0f), new Vector2(96f, 96f));
+                var bt = UIKit.Text(badge.transform, "R", unlocked ? $"<size=55%>Rang</size>\n<b>{MoveDb.RankName(rank)}</b>" : "<size=55%>ab Stufe</size>\n<b>" + pm.unlock + "</b>", 34f, Color.white, TextAlignmentOptions.Center, true);
+                UIKit.Stretch(bt.rectTransform);
+
+                string sig = pm.signature ? "  <size=70%><color=#ffd23f>★ Markenattacke</color></size>" : "";
+                string next = !unlocked ? "" : rank >= MoveDb.MaxRank ? "  <size=70%><color=#7dffb0>Höchster Rang</color></size>"
+                    : $"  <size=70%><color=#9aa>Rang {MoveDb.RankName(rank + 1)} ab Stufe {pm.unlock + rank * MoveDb.LevelsPerRank}</color></size>";
+                string val = MoveValue(m, Mathf.Max(1, rank));
+                string dur = m.duration > 0 ? $"  ·  Dauer {MoveDb.Scaled(m, Mathf.Max(1, rank)).duration}" : "";
+                var t = UIKit.Text(row.transform, "Text",
+                    $"<b>{m.name}</b>{sig}{next}\n<size=80%><color={Look.Hex(ec)}>{val}</color>  ·  {TargetText(m.kind)}{dur}</size>\n<size=72%><i><color=#c9b99a>{m.text}</color></i></size>",
+                    28f, unlocked ? Color.white : new Color(1f, 1f, 1f, 0.5f), TextAlignmentOptions.MidlineLeft);
+                UIKit.Stretch(t.rectTransform, 130, 6, 300, 6);
+                t.enableAutoSizing = true; t.fontSizeMin = 12; t.fontSizeMax = 28;
+
+                if (unlocked)
+                {
+                    var b = Btn(row.transform, on ? "Aktiv ✓" : "Mitnehmen", on ? new Color(0.85f, 0.55f, 0.15f) : UX.Green, () =>
+                    {
+                        if (Progress.ToggleMove(oc, idx, out var err)) Game.Save(); else Toast(err);
+                        ShowMovePicker(d);
+                    }, 26f);
+                    UIKit.Place((RectTransform)b.transform, new Vector2(1f, 0.5f), new Vector2(-140f, 0f), new Vector2(240f, 80f));
+                }
+            }
+
+            var back = Btn(panel.transform, "Zurück", UX.Grey, () => ShowDetail(d), 34f);
+            UIKit.Place((RectTransform)back.transform, new Vector2(0.5f, 0f), new Vector2(0f, 60f), new Vector2(300f, 80f));
         }
 
         static string Roman(int n) => n <= 1 ? "" : n == 2 ? "II" : n == 3 ? "III" : n == 4 ? "IV" : "V";

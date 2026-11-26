@@ -19,6 +19,8 @@ namespace Kesselwerk.Core
         // Ausrüstung (leer = nichts angelegt)
         public string weapon, armor, amulet;
         public int weaponLv = 1, armorLv = 1, amuletLv = 1;
+        // Gewählte Attacken (Index im Attacken-Pool, -1 = automatisch)
+        public int move1 = -1, move2 = -1;
 
         public UnitSpec() { }
         public UnitSpec(string id, int level, int slot, int stars = 1, int stage = 0)
@@ -54,6 +56,9 @@ namespace Kesselwerk.Core
                 if (u.slot < 0 || u.slot >= Slots || !used.Add(u.slot)) { error = "Ungültiges Feld."; return false; }
                 if (u.level < 1 || u.level > Stats.MaxLevelCap || u.stars < 1 || u.stars > Stats.MaxStars) { error = "Ungültige Stufe."; return false; }
                 if (u.level > Stats.MaxLevel(u.stars)) { error = "Stufe über der Sterngrenze."; return false; }
+                var cd = CreatureDb.Get(u.id);
+                if ((u.move1 >= 0 && !MoveDb.IsUnlocked(cd, u.move1, u.level)) || (u.move2 >= 0 && !MoveDb.IsUnlocked(cd, u.move2, u.level)))
+                { error = "Attacke noch nicht freigeschaltet."; return false; }
                 if (!GearOk(u.weapon, u.weaponLv, GearSlot.Waffe) || !GearOk(u.armor, u.armorLv, GearSlot.Ruestung) || !GearOk(u.amulet, u.amuletLv, GearSlot.Amulett))
                 { error = "Ungültige Ausrüstung."; return false; }
             }
@@ -171,6 +176,10 @@ namespace Kesselwerk.Core
         public int uid, team, slot;
         public CreatureDef def;
         public UnitSpec spec;
+        public SkillDef[] moves;   // mitgenommene Attacken (wechseln sich ab)
+        public MoveFx[] moveFx;
+        public int[] moveRank;
+        public int moveTurn;
 
         public float maxHp, hp, atk, defense, spd, crit, critDmg = 1.5f, dodge, lifesteal, regen, energyMul = 1f, healTakenMul = 1f, thorns;
         public float shield, gauge, energy;
@@ -234,6 +243,8 @@ namespace Kesselwerk.Core
         public bool crit;
         public float elem;      // Elementfaktor (1 = neutral)
         public SkillKind skill;
+        public MoveFx fx;       // Optik der Attacke
+        public int rank;        // Rang der Attacke (1–5)
         public string text;
 
         public override string ToString() => $"{type} {actor}->{target} {value}{(crit ? " KRIT" : "")} {text}";
@@ -324,6 +335,16 @@ namespace Kesselwerk.Core
                 {
                     uid = units.Count, team = side, slot = spec.slot, def = d, spec = spec,
                 };
+                var pool = MoveDb.PoolFor(d);
+                var eq = MoveDb.Equipped(d, spec);
+                u.moves = new SkillDef[eq.Length]; u.moveFx = new MoveFx[eq.Length]; u.moveRank = new int[eq.Length];
+                for (int k = 0; k < eq.Length; k++)
+                {
+                    var pm = pool[eq[k]];
+                    int rank = MoveDb.Rank(spec.level, pm.unlock);
+                    u.moves[k] = MoveDb.Scaled(pm.move, rank);
+                    u.moveFx[k] = pm.move.fx; u.moveRank[k] = rank;
+                }
                 u.maxHp = Stats.Hp(d, spec) * (1f + allB);
                 u.hp = u.maxHp;
                 u.atk = Stats.Atk(d, spec) * (1f + atkB + allB) * WeatherInfo.AtkMul(weather, d.element);
@@ -532,8 +553,11 @@ namespace Kesselwerk.Core
 
         void CastSkill(BattleUnit a)
         {
-            var s = a.def.skill;
-            var ev = new BattleEvent { type = EvType.Skill, actor = a.uid, target = -1, skill = s.kind, text = s.name };
+            int mi = a.moves != null && a.moves.Length > 0 ? a.moveTurn % a.moves.Length : -1;
+            a.moveTurn++;
+            var s = mi >= 0 ? a.moves[mi] : a.def.skill;
+            var ev = new BattleEvent { type = EvType.Skill, actor = a.uid, target = -1, skill = s.kind, text = s.name,
+                                       fx = mi >= 0 ? a.moveFx[mi] : MoveDb.FxFor(s.kind, a.def.element, a.def.ranged), rank = mi >= 0 ? a.moveRank[mi] : 1 };
 
             switch (s.kind)
             {

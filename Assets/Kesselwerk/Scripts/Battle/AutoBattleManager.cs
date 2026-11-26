@@ -9,7 +9,7 @@ namespace Kesselwerk
     /// Vollautomatischer 3D-Kampf. Der Kampf wird zuerst deterministisch berechnet (BattleSim)
     /// und danach als Ereignisfolge in 3D abgespielt. So kann ein Server später dasselbe Ergebnis nachrechnen.
     /// </summary>
-    public class AutoBattleManager : MonoBehaviour
+    public partial class AutoBattleManager : MonoBehaviour
     {
         public static int Speed = 1;
         public static AutoBattleManager Instance { get; private set; }
@@ -178,7 +178,7 @@ namespace Kesselwerk
                     int end = GroupEnd(cursor + 1);
                     var group = events.GetRange(cursor + 1, end - cursor - 1);
                     if (e.type == EvType.Attack) yield return PlayAttack(e, group);
-                    else yield return PlaySkill(e, group);
+                    else yield return PlayMove(e, group);
                     cursor = end;
                     yield return new WaitForSeconds(0.05f);
                 }

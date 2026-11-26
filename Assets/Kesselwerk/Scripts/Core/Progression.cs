@@ -17,9 +17,10 @@ namespace Kesselwerk.Core
         public int stage;
         public int copies;   // überzählige Exemplare für die Fusion
         public int weaponUid, armorUid, amuletUid; // angelegte Ausrüstung (0 = nichts)
+        public int move1 = -1, move2 = -1;          // gewählte Attacken (-1 = automatisch)
 
         public CreatureDef Def => CreatureDb.Get(id);
-        public UnitSpec ToSpec(int slot) => new UnitSpec(id, level, slot, stars, stage);
+        public UnitSpec ToSpec(int slot) => new UnitSpec(id, level, slot, stars, stage) { move1 = move1, move2 = move2 };
         public string Name => Def != null ? Def.StageName(stage) : id;
     }
 
@@ -162,6 +163,35 @@ namespace Kesselwerk.Core
 
     public static class Progress
     {
+        /// <summary>Aktuell mitgenommene Attacken (Indizes im Pool), wie im Kampf.</summary>
+        public static int[] EquippedMoves(OwnedCreature c) => MoveDb.Equipped(c.Def, c.ToSpec(0));
+
+        /// <summary>Attacke an-/abwählen. Höchstens zwei; beim Abwählen der letzten bleibt sie aktiv.</summary>
+        public static bool ToggleMove(OwnedCreature c, int index, out string error)
+        {
+            error = null;
+            if (!MoveDb.IsUnlocked(c.Def, index, c.level))
+            {
+                var p = MoveDb.PoolFor(c.Def);
+                error = index >= 0 && index < p.Length ? $"Wird ab Stufe {p[index].unlock} freigeschaltet." : "Unbekannte Attacke.";
+                return false;
+            }
+            var cur = new List<int>(EquippedMoves(c));
+            if (cur.Contains(index))
+            {
+                if (cur.Count <= 1) { error = "Mindestens eine Attacke muss aktiv sein."; return false; }
+                cur.Remove(index);
+            }
+            else
+            {
+                if (cur.Count >= MoveDb.Equip) cur.RemoveAt(0);
+                cur.Add(index);
+            }
+            c.move1 = cur.Count > 0 ? cur[0] : -1;
+            c.move2 = cur.Count > 1 ? cur[1] : -1;
+            return true;
+        }
+
         public const int PotionXp = 100;
 
         public static int XpToNext(int level) => 80 + level * 40;

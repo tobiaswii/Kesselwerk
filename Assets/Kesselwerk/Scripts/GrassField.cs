@@ -31,7 +31,7 @@ namespace Kesselwerk
             switch (region)
             {
                 case 1: bottom = new Color(0.16f, 0.09f, 0.06f); top = new Color(0.55f, 0.36f, 0.2f); count = 2500; height = 0.32f; break;
-                case 2: bottom = new Color(0.55f, 0.62f, 0.72f); top = new Color(0.95f, 0.97f, 1f); count = 2200; height = 0.22f; break;
+                case 2: bottom = new Color(0.22f, 0.32f, 0.38f); top = new Color(0.62f, 0.74f, 0.82f); count = 1600; height = 0.2f; break;
                 case 3: bottom = new Color(0.1f, 0.06f, 0.16f); top = new Color(0.45f, 0.32f, 0.7f); count = 5000; height = 0.38f; break;
                 default: bottom = new Color(0.1f, 0.26f, 0.08f); top = new Color(0.58f, 0.82f, 0.3f); count = 9000; height = 0.42f; break;
             }

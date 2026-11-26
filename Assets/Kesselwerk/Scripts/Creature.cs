@@ -285,6 +285,111 @@ namespace Kesselwerk
             busy = false;
         }
 
+
+        // ------------------------------------------------------------------
+        // Bausteine für Attacken-Animationen
+        // ------------------------------------------------------------------
+
+        public float PlayClip(string[] keys) => anim != null ? anim.Play(keys, false) : 0f;
+        public IEnumerator Face(Vector3 p, float time = 0.12f) { busy = true; yield return TurnTo(p, time); }
+        public IEnumerator GoHome() => ReturnHome();
+
+        /// <summary>Kraft sammeln: Clip abspielen, leicht anheben, pulsierend in der Elementfarbe leuchten, Funken ziehen sich zusammen.</summary>
+        public IEnumerator Channel(string[] keys, float time, Color c, float lift = 0.25f)
+        {
+            busy = true;
+            PlayClip(keys);
+            FxPlus.Gather(Center, c, Height, time);
+            for (float t = 0f; t < 1f; t += Time.deltaTime / time)
+            {
+                float k = Mathf.Clamp01(t);
+                body.localPosition = new Vector3(0f, Mathf.Sin(k * Mathf.PI * 0.5f) * lift, 0f);
+                SetFlash(c, (0.25f + 0.35f * Mathf.Abs(Mathf.Sin(k * Mathf.PI * 3f))) * k);
+                yield return null;
+            }
+        }
+
+        /// <summary>Nach dem Kraftsammeln wieder normal.</summary>
+        public IEnumerator Release(float time = 0.2f)
+        {
+            Vector3 p0 = body.localPosition;
+            for (float t = 0f; t < 1f; t += Time.deltaTime / time)
+            {
+                float k = Mathf.Clamp01(t);
+                body.localPosition = Vector3.Lerp(p0, Vector3.zero, k);
+                SetFlash(ElementColor, (1f - k) * 0.4f);
+                yield return null;
+            }
+            body.localPosition = Vector3.zero;
+            SetFlash(Color.white, 0f);
+        }
+
+        /// <summary>Ansturm oder Sprung aufs Ziel mit gewähltem Clip. onImpact beim Treffer.</summary>
+        public IEnumerator Lunge(Creature target, string[] keys, System.Action onImpact, bool leap, float speed = 0.2f)
+        {
+            busy = true;
+            yield return TurnTo(target.transform.position, 0.1f);
+            StartTrail();
+            Vector3 dir = target.transform.position - transform.position; dir.y = 0f;
+            float reach = 0.5f + target.Height * 0.25f + Height * 0.2f;
+            Vector3 end = target.transform.position - dir.normalized * reach; end.y = home.y;
+            Vector3 start = transform.position;
+            if (leap)
+            {
+                float len = PlayClip(keys);
+                // Absprung-Ausholen
+                yield return new WaitForSeconds(Mathf.Clamp(len * 0.12f, 0.05f, 0.12f));
+                for (float t = 0f; t < 1f; t += Time.deltaTime / (speed * 1.6f))
+                {
+                    float k = Mathf.Clamp01(t);
+                    Vector3 p = Vector3.Lerp(start, end, k);
+                    p.y += Mathf.Sin(k * Mathf.PI) * (1.2f + Height * 0.4f);
+                    transform.position = p;
+                    yield return null;
+                }
+                transform.position = end;
+                onImpact?.Invoke();
+                yield return new WaitForSeconds(0.18f);
+            }
+            else
+            {
+                anim?.Play(MonsterAnimator.WalkKeys, true);
+                for (float t = 0f; t < 1f; t += Time.deltaTime / speed)
+                {
+                    float k = Mathf.Clamp01(t);
+                    transform.position = Vector3.Lerp(start, end, k * k);
+                    if (Random.value < 0.5f) FxPlus.Dust(transform.position, 0.5f);
+                    yield return null;
+                }
+                transform.position = end;
+                float len = PlayClip(keys);
+                yield return new WaitForSeconds(Mathf.Clamp(len * 0.35f, 0.08f, 0.22f));
+                onImpact?.Invoke();
+                yield return new WaitForSeconds(0.12f);
+            }
+            yield return ReturnHome();
+        }
+
+        /// <summary>Starker Rückstoß nach großen Treffern.</summary>
+        public void Knock(Vector3 from, float power)
+        {
+            if (IsDead) return;
+            StartCoroutine(KnockRoutine(from, power));
+        }
+
+        IEnumerator KnockRoutine(Vector3 from, float power)
+        {
+            Vector3 push = transform.position - from; push.y = 0f;
+            push = push.sqrMagnitude > 0.001f ? push.normalized * power : Vector3.zero;
+            for (float t = 0f; t < 1f; t += Time.deltaTime / 0.35f)
+            {
+                float k = Mathf.Clamp01(t);
+                body.localPosition = transform.InverseTransformVector(push) * Mathf.Sin(k * Mathf.PI) + Vector3.up * Mathf.Sin(k * Mathf.PI) * power * 0.6f;
+                yield return null;
+            }
+            body.localPosition = Vector3.zero;
+        }
+
         public static IEnumerator Projectile(Vector3 from, Vector3 to, Color color, float time)
         {
             var go = new GameObject("Geschoss");

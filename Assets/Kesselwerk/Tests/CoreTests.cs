@@ -549,3 +549,74 @@ namespace Kesselwerk.Tests
         }
     }
 }
+namespace Kesselwerk.Tests
+{
+    using Kesselwerk.Core;
+    using NUnit.Framework;
+
+    [TestFixture]
+    public class MoveTests
+    {
+        [Test]
+        public void JedeKreaturHatVierAttacken()
+        {
+            foreach (var d in CreatureDb.All)
+            {
+                if (d.isBoss) continue;
+                var p = MoveDb.PoolFor(d);
+                Assert.AreEqual(4, p.Length, d.id);
+                Assert.IsTrue(p[0].signature);
+                Assert.AreEqual(1, p[0].unlock);
+            }
+        }
+
+        [Test]
+        public void RangSteigtMitStufe()
+        {
+            Assert.AreEqual(0, MoveDb.Rank(5, 6));
+            Assert.AreEqual(1, MoveDb.Rank(6, 6));
+            Assert.AreEqual(2, MoveDb.Rank(13, 6));
+            Assert.AreEqual(5, MoveDb.Rank(60, 1));
+            Assert.IsTrue(MoveDb.RankMul(5) > MoveDb.RankMul(1));
+        }
+
+        [Test]
+        public void GewaehlteAttackenWerdenImKampfGenutzt()
+        {
+            var d = CreatureDb.Get("kitsune");
+            var pool = MoveDb.PoolFor(d);
+            var me = new TeamSpec().Add(new UnitSpec("kitsune", 20, 0, 2) { move1 = 1, move2 = 2 });
+            var foe = new TeamSpec().Add(new UnitSpec("steingolem", 20, 0, 2));
+            string err;
+            Assert.IsTrue(me.IsValid(out err), err);
+            var r = BattleSim.Run(me, foe, 7);
+            var names = new System.Collections.Generic.HashSet<string>();
+            foreach (var e in r.events) if (e.type == EvType.Skill && e.actor == 0) names.Add(e.text);
+            Assert.IsFalse(names.Contains(pool[0].move.name), "Markenattacke sollte nicht dabei sein");
+            Assert.IsTrue(names.Contains(pool[1].move.name) || names.Contains(pool[2].move.name));
+        }
+
+        [Test]
+        public void GesperrteAttackeIstUngueltig()
+        {
+            var t = new TeamSpec().Add(new UnitSpec("kitsune", 3, 0, 1) { move1 = 3 });
+            string err;
+            Assert.IsFalse(t.IsValid(out err));
+        }
+
+        [Test]
+        public void UmschaltenHaeltHoechstensZwei()
+        {
+            var c = new OwnedCreature { id = "kitsune", level = 30, stars = 3 };
+            string err;
+            Assert.IsTrue(Progress.ToggleMove(c, 1, out err), err);
+            Assert.IsTrue(Progress.ToggleMove(c, 2, out err), err);
+            var eq = Progress.EquippedMoves(c);
+            Assert.AreEqual(2, eq.Length);
+            Assert.IsTrue(System.Array.IndexOf(eq, 1) >= 0 && System.Array.IndexOf(eq, 2) >= 0);
+            Assert.IsTrue(Progress.ToggleMove(c, 2, out err), err);
+            Assert.AreEqual(1, Progress.EquippedMoves(c).Length);
+            Assert.IsFalse(Progress.ToggleMove(c, 1, out err));
+        }
+    }
+}

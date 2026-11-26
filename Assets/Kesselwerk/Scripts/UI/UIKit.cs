@@ -8,9 +8,35 @@ namespace Kesselwerk
     /// <summary>Hilfsfunktionen und im Code erzeugte Grafiken (abgerundete Ecken, Kreise, Verläufe).</summary>
     public static class UIKit
     {
-        static Sprite rounded, roundedSoft, circle, glow, gradient;
+        static Sprite rounded, roundedSoft, circle, glow, gradient, hGradient;
+        static TMP_FontAsset font;
+        static bool fontTried;
 
-        public static Sprite Rounded => rounded != null ? rounded : (rounded = MakeRounded(96, 22f, 1.2f));
+        // Moderner Stil (Glas-Optik wie bei aktuellen Survival-/Monsterspielen)
+        public static readonly Color Glass = new Color(0.055f, 0.07f, 0.095f, 0.82f);
+        public static readonly Color GlassEdge = new Color(1f, 1f, 1f, 0.16f);
+        public static readonly Color TextDim = new Color(0.78f, 0.82f, 0.88f, 1f);
+
+        /// <summary>Schrift Exo 2 (OFL) aus Resources/Fonts, mit TMP-Standardschrift als Ersatz für fehlende Zeichen.</summary>
+        public static TMP_FontAsset Font
+        {
+            get
+            {
+                if (fontTried) return font;
+                fontTried = true;
+                var f = Resources.Load<Font>("Fonts/Exo2");
+                if (f == null) return null;
+                font = TMP_FontAsset.CreateFontAsset(f);
+                if (font != null && TMP_Settings.defaultFontAsset != null)
+                {
+                    font.fallbackFontAssetTable = new System.Collections.Generic.List<TMP_FontAsset> { TMP_Settings.defaultFontAsset };
+                }
+                return font;
+            }
+        }
+
+        public static Sprite Rounded => rounded != null ? rounded : (rounded = MakeRounded(96, 12f, 1.2f));
+        public static Sprite HGradient => hGradient != null ? hGradient : (hGradient = MakeHGradient());
         public static Sprite RoundedSoft => roundedSoft != null ? roundedSoft : (roundedSoft = MakeRounded(96, 26f, 18f));
         public static Sprite Circle => circle != null ? circle : (circle = MakeCircle(128, 1.5f));
         public static Sprite Glow => glow != null ? glow : (glow = MakeCircle(128, 60f));
@@ -72,6 +98,16 @@ namespace Kesselwerk
             return Sprite.Create(tex, new Rect(0, 0, 4, 64), new Vector2(0.5f, 0.5f), 100f);
         }
 
+        static Sprite MakeHGradient()
+        {
+            var tex = new Texture2D(64, 4, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            for (int x = 0; x < 64; x++)
+                for (int y = 0; y < 4; y++)
+                    tex.SetPixel(x, y, new Color(1f, 1f, 1f, Mathf.Pow(1f - x / 63f, 1.6f)));
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, 64, 4), new Vector2(0.5f, 0.5f), 100f);
+        }
+
         // ------------------------------------------------------------------
 
         public static RectTransform Rect(string name, Transform parent)
@@ -128,35 +164,101 @@ namespace Kesselwerk
             t.alignment = align;
             t.raycastTarget = false;
             t.richText = true;
+            if (Font != null) t.font = Font;
             if (bold) t.fontStyle = FontStyles.Bold;
             return t;
         }
 
         public static Button Button(Transform parent, string name, string label, Color color, UnityAction onClick, float fontSize = 38f)
         {
-            var img = Img(parent, name, Rounded, color);
-            img.raycastTarget = true;
-            var btn = img.gameObject.AddComponent<Button>();
+            // Glas-Knopf: dunkle Fläche, feine helle Kante, farbiger Akzentstreifen links mit weichem Verlauf
+            var edge = Img(parent, name, Rounded, GlassEdge);
+            edge.raycastTarget = true;
+            var img = Img(edge.transform, "Glas", Rounded, Glass);
+            Stretch(img.rectTransform, 2, 2, 2, 2);
+            var btn = edge.gameObject.AddComponent<Button>();
+            btn.targetGraphic = img;
             var colors = btn.colors;
-            colors.highlightedColor = new Color(1.1f, 1.1f, 1.1f);
-            colors.pressedColor = new Color(0.8f, 0.8f, 0.8f);
-            colors.disabledColor = new Color(0.45f, 0.45f, 0.45f, 0.7f);
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1.25f, 1.3f, 1.4f);
+            colors.pressedColor = new Color(0.75f, 0.75f, 0.8f);
+            colors.disabledColor = new Color(0.6f, 0.6f, 0.6f, 0.55f);
+            colors.fadeDuration = 0.08f;
             btn.colors = colors;
             if (onClick != null) btn.onClick.AddListener(onClick);
+            edge.gameObject.AddComponent<PressScale>();
 
-            var shine = Img(img.transform, "Glanz", Gradient, new Color(1f, 1f, 1f, 0.18f));
-            shine.rectTransform.anchorMin = new Vector2(0f, 0.5f);
-            shine.rectTransform.anchorMax = new Vector2(1f, 1f);
-            shine.rectTransform.offsetMin = new Vector2(6f, 0f);
-            shine.rectTransform.offsetMax = new Vector2(-6f, -4f);
-            shine.rectTransform.localScale = new Vector3(1f, -1f, 1f);
+            Color acc = color; acc.a = 1f;
+            var glow = Img(img.transform, "Akzentverlauf", HGradient, new Color(acc.r, acc.g, acc.b, 0.45f));
+            Stretch(glow.rectTransform, 0, 0, 0, 0);
+            glow.rectTransform.anchorMax = new Vector2(0.75f, 1f);
+            var bar = Img(img.transform, "Akzent", null, acc);
+            bar.rectTransform.anchorMin = new Vector2(0f, 0.12f);
+            bar.rectTransform.anchorMax = new Vector2(0f, 0.88f);
+            bar.rectTransform.pivot = new Vector2(0f, 0.5f);
+            bar.rectTransform.anchoredPosition = new Vector2(4f, 0f);
+            bar.rectTransform.sizeDelta = new Vector2(6f, 0f);
+            var line = Img(img.transform, "Glanzlinie", null, new Color(1f, 1f, 1f, 0.07f));
+            line.rectTransform.anchorMin = new Vector2(0f, 1f);
+            line.rectTransform.anchorMax = new Vector2(1f, 1f);
+            line.rectTransform.pivot = new Vector2(0.5f, 1f);
+            line.rectTransform.sizeDelta = new Vector2(-12f, 2f);
+            line.rectTransform.anchoredPosition = new Vector2(0f, -3f);
 
             var t = Text(img.transform, "Text", label, fontSize, Color.white, TextAlignmentOptions.Center, true);
-            Stretch(t.rectTransform, 10, 4, 10, 4);
+            Stretch(t.rectTransform, 18, 4, 10, 4);
             t.enableAutoSizing = true;
             t.fontSizeMin = 14f;
             t.fontSizeMax = fontSize;
+            t.characterSpacing = 1.5f;
             return btn;
+        }
+
+        /// <summary>Runder Knopf (z. B. Kampagnen-Stufen): Kreis mit Akzentring statt Streifen.</summary>
+        public static void Round(Button b, Color accent)
+        {
+            var edge = b.GetComponent<Image>();
+            edge.sprite = Circle; edge.type = Image.Type.Simple;
+            Color a = accent; a.a = 1f;
+            edge.color = a;
+            var glass = b.transform.Find("Glas")?.GetComponent<Image>();
+            if (glass != null)
+            {
+                glass.sprite = Circle; glass.type = Image.Type.Simple;
+                Stretch(glass.rectTransform, 5, 5, 5, 5);
+                glass.color = new Color(a.r * 0.35f, a.g * 0.35f, a.b * 0.35f, 0.92f);
+                foreach (var n in new[] { "Akzent", "Glanzlinie", "Akzentverlauf" })
+                {
+                    var x = glass.transform.Find(n); if (x != null) x.gameObject.SetActive(false);
+                }
+                var hi = Img(glass.transform, "Licht", Glow, new Color(a.r, a.g, a.b, 0.45f));
+                Stretch(hi.rectTransform, 6, 6, 6, 6);
+                hi.transform.SetAsFirstSibling();
+            }
+        }
+
+        /// <summary>Glas-Fläche mit feiner Kante (für Leisten, Chips, Banner).</summary>
+        public static Image GlassPanel(Transform parent, string name, Color? accent = null, float alpha = 0.82f)
+        {
+            var edge = Img(parent, name, Rounded, GlassEdge);
+            var g = Glass; g.a = alpha;
+            var fill = Img(edge.transform, "Glas", Rounded, g);
+            Stretch(fill.rectTransform, 2, 2, 2, 2);
+            if (accent.HasValue)
+            {
+                Color a = accent.Value; a.a = 0.35f;
+                var gr = Img(fill.transform, "Verlauf", HGradient, a);
+                Stretch(gr.rectTransform);
+                gr.rectTransform.anchorMax = new Vector2(0.7f, 1f);
+                a.a = 1f;
+                var bar = Img(fill.transform, "Akzent", null, a);
+                bar.rectTransform.anchorMin = new Vector2(0f, 0.15f);
+                bar.rectTransform.anchorMax = new Vector2(0f, 0.85f);
+                bar.rectTransform.pivot = new Vector2(0f, 0.5f);
+                bar.rectTransform.anchoredPosition = new Vector2(3f, 0f);
+                bar.rectTransform.sizeDelta = new Vector2(5f, 0f);
+            }
+            return edge;
         }
 
         public static void SetLabel(Button b, string text)
@@ -183,6 +285,21 @@ namespace Kesselwerk
             Stretch(t.rectTransform);
             UX.Outline(t, 0.25f);
             return t;
+        }
+    }
+
+    /// <summary>Knöpfe federn beim Drücken leicht ein.</summary>
+    public class PressScale : MonoBehaviour, UnityEngine.EventSystems.IPointerDownHandler, UnityEngine.EventSystems.IPointerUpHandler, UnityEngine.EventSystems.IPointerExitHandler
+    {
+        float target = 1f, cur = 1f;
+        public void OnPointerDown(UnityEngine.EventSystems.PointerEventData e) => target = 0.95f;
+        public void OnPointerUp(UnityEngine.EventSystems.PointerEventData e) => target = 1f;
+        public void OnPointerExit(UnityEngine.EventSystems.PointerEventData e) => target = 1f;
+        void Update()
+        {
+            if (Mathf.Abs(cur - target) < 0.001f) return;
+            cur = Mathf.MoveTowards(cur, target, Time.unscaledDeltaTime * 1.5f);
+            transform.localScale = new Vector3(cur, cur, 1f);
         }
     }
 }

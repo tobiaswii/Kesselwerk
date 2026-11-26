@@ -51,22 +51,37 @@ namespace Kesselwerk
             UIKit.Stretch(topBg.rectTransform, 0, -40, 0, 0);
             topBg.rectTransform.localScale = new Vector3(1f, -1f, 1f);
 
-            titleText = UIKit.Text(top, "Titel", title, 40f, Color.white, TextAlignmentOptions.MidlineLeft, true);
-            titleText.rectTransform.anchorMin = new Vector2(0f, 0f);
+            // Titel: Region groß, Stufe klein darunter, dünne Akzentlinie
+            string region = title, sub = "";
+            int dot = title.IndexOf('·');
+            if (dot > 0) { region = title.Substring(0, dot).Trim(); sub = title.Substring(dot + 1).Trim(); }
+            titleText = UIKit.Text(top, "Titel", region.ToUpperInvariant(), 38f, Color.white, TextAlignmentOptions.TopLeft, true);
+            titleText.rectTransform.anchorMin = new Vector2(0f, 1f);
             titleText.rectTransform.anchorMax = new Vector2(0.6f, 1f);
-            titleText.rectTransform.offsetMin = new Vector2(30f, 0f);
-            titleText.rectTransform.offsetMax = Vector2.zero;
-            titleText.enableAutoSizing = true;
-            titleText.fontSizeMin = 18f;
-            titleText.fontSizeMax = 40f;
-            UX.Outline(titleText);
+            titleText.rectTransform.pivot = new Vector2(0f, 1f);
+            titleText.rectTransform.anchoredPosition = new Vector2(36f, -20f);
+            titleText.rectTransform.sizeDelta = new Vector2(0f, 46f);
+            titleText.characterSpacing = 6f;
+            titleText.enableAutoSizing = true; titleText.fontSizeMin = 18f; titleText.fontSizeMax = 38f;
+            UX.Outline(titleText, 0.15f);
+            var tl = UIKit.Img(top, "Linie", UIKit.HGradient, new Color(0.45f, 0.85f, 1f, 0.9f));
+            tl.rectTransform.anchorMin = tl.rectTransform.anchorMax = new Vector2(0f, 1f);
+            tl.rectTransform.pivot = new Vector2(0f, 1f);
+            tl.rectTransform.anchoredPosition = new Vector2(36f, -70f);
+            tl.rectTransform.sizeDelta = new Vector2(420f, 3f);
+            var subT = UIKit.Text(top, "Stufe", sub, 24f, UIKit.TextDim, TextAlignmentOptions.TopLeft, true);
+            subT.rectTransform.anchorMin = subT.rectTransform.anchorMax = new Vector2(0f, 1f);
+            subT.rectTransform.pivot = new Vector2(0f, 1f);
+            subT.rectTransform.anchoredPosition = new Vector2(36f, -78f);
+            subT.rectTransform.sizeDelta = new Vector2(600f, 32f);
+            subT.characterSpacing = 3f;
 
-            var speed = UIKit.Button(top, "Tempo", "", new Color(0.2f, 0.45f, 0.85f), () => { bm.CycleSpeed(); RefreshSpeed(); Sound.Play("klick"); }, 34f);
-            UIKit.Place((RectTransform)speed.transform, new Vector2(1f, 0.5f), new Vector2(-300f, 0f), new Vector2(150f, 84f));
+            // Tempo und Überspringen: kompakte Glas-Knöpfe
+            var speed = UIKit.Button(top, "Tempo", "", new Color(0.45f, 0.85f, 1f), () => { bm.CycleSpeed(); RefreshSpeed(); Sound.Play("klick"); }, 30f);
+            UIKit.Place((RectTransform)speed.transform, new Vector2(1f, 1f), new Vector2(-232f, -56f), new Vector2(120f, 64f));
             speedLabel = speed.GetComponentInChildren<TextMeshProUGUI>();
-            var skip = UIKit.Button(top, "Ueberspringen", "Ende ▶▶", new Color(0.35f, 0.35f, 0.42f), () => { bm.SkipToEnd(); Sound.Play("klick"); }, 30f);
-            UIKit.Place((RectTransform)skip.transform, new Vector2(1f, 0.5f), new Vector2(-110f, 0f), new Vector2(190f, 84f));
-            UIKit.SetLabel(skip, "Ende");
+            var skip = UIKit.Button(top, "Ueberspringen", "ENDE »", new Color(1f, 0.7f, 0.3f), () => { bm.SkipToEnd(); Sound.Play("klick"); }, 26f);
+            UIKit.Place((RectTransform)skip.transform, new Vector2(1f, 1f), new Vector2(-92f, -56f), new Vector2(150f, 64f));
             RefreshSpeed();
 
             // Bosslebensleiste
@@ -86,8 +101,14 @@ namespace Kesselwerk
             // Banner für Fähigkeiten
             bannerRt = UIKit.Rect("Banner", root);
             UIKit.Place(bannerRt, new Vector2(0.5f, 0.78f), Vector2.zero, new Vector2(900f, 110f));
-            var bbg = UIKit.Img(bannerRt, "Hintergrund", UIKit.RoundedSoft, new Color(0.05f, 0.04f, 0.08f, 0.8f));
-            UIKit.Stretch(bbg.rectTransform, -20, -10, -20, -10);
+            var bbg = UIKit.Img(bannerRt, "Hintergrund", UIKit.RoundedSoft, new Color(0.03f, 0.04f, 0.06f, 0.72f));
+            UIKit.Stretch(bbg.rectTransform, -40, -6, -40, -6);
+            foreach (float yy in new[] { 0f, 1f })
+            {
+                var ln = UIKit.Img(bannerRt, "Linie", null, new Color(0.45f, 0.85f, 1f, 0.75f));
+                ln.rectTransform.anchorMin = new Vector2(0.15f, yy); ln.rectTransform.anchorMax = new Vector2(0.85f, yy);
+                ln.rectTransform.sizeDelta = new Vector2(0f, 2f); ln.rectTransform.anchoredPosition = new Vector2(0f, yy > 0 ? 4f : -4f);
+            }
             bannerText = UIKit.Text(bannerRt, "Text", "", 46f, Color.white, TextAlignmentOptions.Center, true);
             UIKit.Stretch(bannerText.rectTransform);
             bannerText.enableAutoSizing = true;
@@ -130,7 +151,7 @@ namespace Kesselwerk
             flashImg.color = c;
         }
 
-        void RefreshSpeed() => speedLabel.text = $"{AutoBattleManager.Speed}x";
+        void RefreshSpeed() => speedLabel.text = $"{AutoBattleManager.Speed}×";
 
         public void ShowSynergies(List<Synergy> player, List<Synergy> enemy)
         {
@@ -144,17 +165,24 @@ namespace Kesselwerk
             var col = UIKit.Rect(left ? "SynergienSpieler" : "SynergienGegner", root);
             col.anchorMin = col.anchorMax = new Vector2(left ? 0f : 1f, 1f);
             col.pivot = new Vector2(left ? 0f : 1f, 1f);
-            col.anchoredPosition = new Vector2(left ? 16f : -16f, -190f);
-            col.sizeDelta = new Vector2(330f, 400f);
+            col.anchoredPosition = new Vector2(left ? 22f : -22f, -140f);
+            col.sizeDelta = new Vector2(250f, 400f);
+            Color acc = left ? new Color(0.45f, 0.85f, 1f) : new Color(1f, 0.45f, 0.4f);
+            var head = UIKit.Text(col, "Kopf", left ? "SYNERGIEN" : "GEGNER", 16f, new Color(acc.r, acc.g, acc.b, 0.9f), left ? TextAlignmentOptions.TopLeft : TextAlignmentOptions.TopRight, true);
+            head.rectTransform.anchorMin = new Vector2(0f, 1f); head.rectTransform.anchorMax = new Vector2(1f, 1f);
+            head.rectTransform.pivot = new Vector2(0.5f, 1f); head.rectTransform.sizeDelta = new Vector2(0f, 22f);
+            head.characterSpacing = 5f;
             for (int i = 0; i < list.Count; i++)
             {
-                var chip = UIKit.Img(col, "Synergie", UIKit.Rounded, left ? new Color(0.1f, 0.25f, 0.5f, 0.85f) : new Color(0.5f, 0.15f, 0.1f, 0.85f));
+                var chip = UIKit.GlassPanel(col, "Synergie", acc, 0.62f);
                 chip.rectTransform.anchorMin = chip.rectTransform.anchorMax = new Vector2(left ? 0f : 1f, 1f);
                 chip.rectTransform.pivot = new Vector2(left ? 0f : 1f, 1f);
-                chip.rectTransform.anchoredPosition = new Vector2(0f, -i * 66f);
-                chip.rectTransform.sizeDelta = new Vector2(330f, 60f);
-                var t = UIKit.Text(chip.transform, "T", $"<b>{list[i].name}</b>\n<size=70%>{list[i].text}</size>", 22f, Color.white, left ? TextAlignmentOptions.MidlineLeft : TextAlignmentOptions.MidlineRight);
-                UIKit.Stretch(t.rectTransform, 12, 2, 12, 2);
+                chip.rectTransform.anchoredPosition = new Vector2(0f, -26f - i * 50f);
+                chip.rectTransform.sizeDelta = new Vector2(250f, 44f);
+                var t = UIKit.Text(chip.transform, "T", $"{list[i].name.ToUpperInvariant()}\n<size=72%><color=#c7d0da>{list[i].text}</color></size>", 17f, Color.white, TextAlignmentOptions.MidlineLeft, true);
+                UIKit.Stretch(t.rectTransform, 16, 2, 8, 2);
+                t.enableAutoSizing = true; t.fontSizeMin = 10f; t.fontSizeMax = 17f;
+                t.characterSpacing = 1f;
             }
         }
 

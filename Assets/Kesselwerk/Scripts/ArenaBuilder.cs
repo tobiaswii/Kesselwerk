@@ -61,8 +61,8 @@ namespace Kesselwerk
                     RenderSettings.ambientEquatorColor = new Color(0.65f, 0.4f, 0.3f);
                     break;
                 case 2: // Eis
-                    filter = new Color(0.85f, 0.95f, 1.05f); fog = new Color(0.85f, 0.92f, 1f); sunCol = new Color(0.9f, 0.95f, 1f);
-                    temp = -25f; sunI = 1.6f; fogStart = 10f; fogEnd = 40f;
+                    filter = new Color(0.85f, 0.93f, 1.02f); fog = new Color(0.62f, 0.72f, 0.86f); sunCol = new Color(0.9f, 0.95f, 1f);
+                    temp = -18f; sunI = 1.35f; fogStart = 24f; fogEnd = 75f;
                     RenderSettings.ambientSkyColor = new Color(0.75f, 0.85f, 1f);
                     RenderSettings.ambientEquatorColor = new Color(0.8f, 0.85f, 0.95f);
                     break;

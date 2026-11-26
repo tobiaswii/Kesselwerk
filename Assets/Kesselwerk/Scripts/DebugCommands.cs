@@ -67,6 +67,31 @@ namespace Kesselwerk
                     MenuUI.Instance?.Show(MenuPage.Collection);
                     MenuUI.Instance?.DebugGearPicker(CreatureDb.Get(p[1]), (GearSlot)int.Parse(p[2]));
                     return "ok";
+                case "movepick":
+                    MenuUI.Instance?.Show(MenuPage.Collection);
+                    MenuUI.Instance?.DebugMovePicker(CreatureDb.Get(p[1]));
+                    return "ok";
+                case "moves":
+                {
+                    // moves <id> <i> [j] – Attacken setzen (Index im Pool)
+                    var oc = D.Get(p[1]);
+                    if (oc == null) return "nicht im Besitz";
+                    oc.move1 = int.Parse(p[2]);
+                    oc.move2 = p.Length > 3 ? int.Parse(p[3]) : -1;
+                    Game.Save();
+                    var pool = MoveDb.PoolFor(oc.Def);
+                    var eq = Progress.EquippedMoves(oc);
+                    var n = new System.Collections.Generic.List<string>();
+                    foreach (int i in eq) n.Add(pool[i].move.name + "/" + pool[i].move.fx);
+                    return "ok " + string.Join(", ", n);
+                }
+                case "pool":
+                {
+                    var d = CreatureDb.Get(p[1]);
+                    var n = new System.Collections.Generic.List<string>();
+                    foreach (var pm in MoveDb.PoolFor(d)) n.Add($"{pm.move.name}({pm.move.fx},ab {pm.unlock})");
+                    return string.Join("; ", n);
+                }
                 case "tasks":
                     MenuUI.Instance?.ShowTasks();
                     return "ok";
