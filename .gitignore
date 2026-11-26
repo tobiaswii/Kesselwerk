@@ -1,0 +1,70 @@
+# ============================================
+# Unity – generierte Ordner (werden von Unity neu erzeugt)
+# ============================================
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# Asset Store Tools
+/[Aa]ssets/AssetStoreTools*
+
+# Autogenerierte Projektdateien (Visual Studio / Rider)
+.vs/
+.idea/
+.vscode/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Unity-Crash- und Debug-Dateien
+sysinfo.txt
+crashlytics-build.properties
+mono_crash.*
+
+# Build-Ergebnisse
+*.apk
+*.aab
+*.unitypackage
+*.app
+/[Ww]eb[Bb]uild/
+/[Ww]eb/
+
+# Gradle / Android
+.gradle/
+
+# Burst-Debug
+/[Aa]ssets/[Ss]treamingAssets/aa.meta
+/[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# ============================================
+# Betriebssystem
+# ============================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================
+# Geheimnisse – niemals hochladen
+# ============================================
+.env
+*.keystore
+*.jks
+*.p12
+*.mobileprovision
