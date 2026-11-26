@@ -237,17 +237,15 @@ namespace Kesselwerk
             UX.Outline(sub, 0.15f);
 
             var col = UIKit.Rect("Knoepfe", page);
-            if (P) UIKit.Anchor(col, 0.05f, 0.02f, 0.95f, 0.42f); else UIKit.Anchor(col, 0.03f, 0.05f, 0.33f, 0.68f);
+            if (P) UIKit.Anchor(col, 0.05f, 0.04f, 0.95f, 0.36f); else UIKit.Anchor(col, 0.03f, 0.18f, 0.33f, 0.68f);
             col.offsetMin = col.offsetMax = Vector2.zero;
 
             var entries = new (string, Color, MenuPage?, System.Action)[]
             {
-                ("Kampagne", new Color(1f, 0.7f, 0.25f), MenuPage.Campaign, null),
+                (TftSession.Running ? "Kesselschlacht · weiter" : "Kesselschlacht", new Color(1f, 0.45f, 0.35f), null, () => { if (!TftSession.Running) TftSession.NewGame(); GameFlow.ToTft(); }),
                 ("Beschwören", new Color(0.75f, 0.5f, 1f), MenuPage.Summon, null),
                 ("Sammlung", new Color(0.45f, 0.75f, 1f), MenuPage.Collection, null),
-                ("Team", new Color(0.4f, 0.9f, 0.55f), MenuPage.Team, null),
                 ("Aufgaben", new Color(1f, 0.55f, 0.35f), null, ShowTasks),
-                ("Arena  ·  Online", new Color(1f, 0.4f, 0.45f), MenuPage.Arena, null),
                 ("Einstellungen", new Color(0.65f, 0.7f, 0.78f), MenuPage.Settings, null),
             };
             int cols = P ? 2 : 1;

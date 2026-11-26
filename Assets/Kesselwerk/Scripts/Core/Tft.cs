@@ -183,7 +183,7 @@ namespace Kesselwerk.Core
                     p.gold += income;
                     AddXp(p, 2);
                 }
-                else { p.gold = 2; p.level = 1; }
+                else { p.gold = 3; p.level = 1; }
                 if (!p.locked) Refresh(p);
                 p.locked = false;
             }
@@ -374,7 +374,7 @@ namespace Kesselwerk.Core
         public TeamSpec CreepTeam()
         {
             var t = new TeamSpec();
-            int n = stage == 1 ? 1 + round : 3 + stage;
+            int n = stage == 1 ? round : 2 + stage;
             int star = stage >= 5 ? 2 : 1;
             var ids = new List<string>();
             foreach (var id in allowed) if (Tft.Cost(CreatureDb.Get(id)) <= Math.Min(5, stage)) ids.Add(id);

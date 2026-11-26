@@ -33,7 +33,18 @@ namespace Kesselwerk
 
         public static void ToBattle() => Go(true);
 
-        IEnumerator Switch(bool battle)
+        /// <summary>Planungsansicht der Kesselschlacht.</summary>
+        public static void ToTft()
+        {
+            if (instance == null)
+            {
+                instance = new GameObject("GameFlow").AddComponent<GameFlow>();
+                DontDestroyOnLoad(instance.gameObject);
+            }
+            instance.StartCoroutine(instance.Switch(false, true));
+        }
+
+        IEnumerator Switch(bool battle, bool tft = false)
         {
             Time.timeScale = 1f;
             // Alles außer Kamera, Licht und Szenen-Volume entfernen
@@ -50,7 +61,8 @@ namespace Kesselwerk
             var cam = Camera.main;
             if (cam != null) cam.ResetProjectionMatrix();
 
-            if (battle) new GameObject("AutoBattleManager").AddComponent<AutoBattleManager>();
+            if (tft) new GameObject("TftManager").AddComponent<TftManager>();
+            else if (battle) new GameObject("AutoBattleManager").AddComponent<AutoBattleManager>();
             else new GameObject("MenuManager").AddComponent<MenuManager>();
         }
     }

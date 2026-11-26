@@ -46,13 +46,24 @@ namespace Kesselwerk
             Speed = Mathf.Clamp(Game.Data.battleSpeed, 1, 3);
 
             cam = ArenaBuilder.SetupCameraAndLight();
-            ArenaBuilder.BuildArena(true);
+            bool hexBattle = TftSession.Fight != null;
+            ArenaBuilder.BuildArena(true, hexBattle);
+            if (hexBattle) ArenaBuilder.BuildHexBoard(false);
 
             arena = Game.PendingArena;
             Game.PendingArena = null;
             playerTeam = Game.Data.BuildTeam();
             int seed;
-            if (arena != null)
+            tftMode = TftSession.Fight != null;
+            if (tftMode)
+            {
+                playerTeam = TftSession.TeamA;
+                enemyTeam = TftSession.TeamB;
+                seed = TftSession.Fight.seed;
+                stage = new StageDef { region = TftSession.Region, index = 0, name = "Kesselschlacht" };
+                title = $"Runde {TftSession.Current.RoundName}  ·  gegen {TftSession.Opponent}";
+            }
+            else if (arena != null)
             {
                 // Arena: Gegner und Startwert kommen vom Server, der den Kampf schon berechnet hat
                 stage = new StageDef { region = 0, index = 0, name = "Arena" };
@@ -69,8 +80,8 @@ namespace Kesselwerk
             }
             ArenaBuilder.ApplyRegionMood(stage.region);
             WeatherFx.DressRegion(stage.region);
-            GrassField.Create(stage.region, true);
-            weather = arena != null ? Weather.Klar : Campaign.WeatherFor(stage.region, stage.index);
+            GrassField.Create(stage.region, true, tftMode);
+            weather = arena != null || tftMode ? Weather.Klar : Campaign.WeatherFor(stage.region, stage.index);
             result = BattleSim.Run(playerTeam, enemyTeam, seed, weather);
             Debug.Log($"Kesselwerk: Kampf {title} berechnet – Startwert {seed}, {result.events.Count} Ereignisse, Sieger {(result.winner == 0 ? "Spieler" : "Gegner")}");
             if (arena != null && arena.serverWinner != result.winner)
@@ -92,8 +103,9 @@ namespace Kesselwerk
             foreach (var u in result.units)
             {
                 bool player = u.team == 0;
-                var pos = ArenaBuilder.SlotPos(player, u.slot);
-                var v = Creature.Spawn(u.def, u.spec.stage, pos, player ? Vector3.forward : Vector3.back, player, u.slot);
+                var pos = tftMode ? ArenaBuilder.HexWorld(u.pos) : ArenaBuilder.SlotPos(player, u.slot);
+                var v = Creature.Spawn(u.def, u.spec.stage, pos, player ? Vector3.forward : Vector3.back, player, u.slot,
+                                       tftMode ? 0.85f + 0.12f * (u.spec.stars - 1) : 1f);
                 views[u.uid] = v;
                 hud.AddUnit(u, v);
                 hud.SetBar(u.uid, hp[u.uid], maxHp[u.uid], shield[u.uid], 0f, u.def.isBoss);
@@ -104,6 +116,7 @@ namespace Kesselwerk
         }
 
         Weather weather;
+        bool tftMode;
 
         void OnDestroy() => Time.timeScale = 1f;
 
@@ -181,6 +194,13 @@ namespace Kesselwerk
                     else yield return PlayMove(e, group);
                     cursor = end;
                     yield return new WaitForSeconds(0.05f);
+                }
+                else if (e.type == EvType.Move)
+                {
+                    if (views.TryGetValue(e.actor, out var mv)) StartCoroutine(mv.WalkTo(ArenaBuilder.HexWorld(e.value), 0.2f));
+                    cursor++;
+                    bool moreMoves = cursor < events.Count && events[cursor].type == EvType.Move;
+                    yield return new WaitForSeconds(moreMoves ? 0.05f : 0.2f);
                 }
                 else
                 {
@@ -561,6 +581,14 @@ namespace Kesselwerk
                 foreach (var u in result.units)
                     if (u.team == 0 && u.Alive) Fx.Burst(views[u.uid].Top, new Color(3f, 2.4f, 0.8f), 30, 4f, 0.2f, 1f, 1f);
 
+            if (tftMode)
+            {
+                TftSession.FinishFight(result);
+                hud.Banner((won ? "<color=#ffd23f>SIEG!</color>" : "NIEDERLAGE") + $"\n<size=55%>{TftSession.Report}</size>", 1.6f);
+                yield return new WaitForSeconds(2.2f);
+                GameFlow.ToTft();
+                yield break;
+            }
             if (arena != null)
             {
                 // Arena: Wertung kommt vom Server, dazu etwas Gold
@@ -609,10 +637,11 @@ namespace Kesselwerk
             float halfV = camFov * 0.5f * Mathf.Deg2Rad;
             float halfH = Mathf.Atan(Mathf.Tan(halfV) * cam.aspect);
             // Hochkant: steiler und gerader von hinten, damit das Feld die Höhe nutzt
-            float pitch = portrait ? 56f : CamPitch;
-            float yaw = portrait ? 8f : CamYaw;
-            float distW = (portrait ? 4.3f : 5.6f) / Mathf.Tan(halfH);
-            float distD = (portrait ? 5.6f : 4.6f) / Mathf.Tan(halfV);
+            float pitch = portrait ? 56f : (tftMode ? 50f : CamPitch);
+            float yaw = portrait ? 8f : (tftMode ? 10f : CamYaw);
+            float fit = tftMode ? 1.3f : 1f;
+            float distW = (portrait ? 4.3f : 5.6f) * fit / Mathf.Tan(halfH);
+            float distD = (portrait ? 5.6f : 4.6f) * fit / Mathf.Tan(halfV);
             camDist = Mathf.Max(10f, Mathf.Max(distW, distD));
 
             zoomAmount = Mathf.MoveTowards(zoomAmount, zoomGoal, Time.unscaledDeltaTime * 2.5f);

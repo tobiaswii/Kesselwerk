@@ -67,6 +67,19 @@ namespace Kesselwerk
                     MenuUI.Instance?.Show(MenuPage.Collection);
                     MenuUI.Instance?.DebugGearPicker(CreatureDb.Get(p[1]), (GearSlot)int.Parse(p[2]));
                     return "ok";
+                case "tft":
+                {
+                    // tft new | auto | fight | state – Kesselschlacht steuern
+                    string sub = p.Length > 1 ? p[1] : "state";
+                    if (sub == "new") { TftSession.NewGame(); GameFlow.ToTft(); return "ok neue Partie"; }
+                    var tm = Object.FindFirstObjectByType<TftManager>();
+                    if (sub == "auto") return tm != null ? tm.DebugAuto() : "nicht in der Planung";
+                    if (sub == "fight") { if (tm == null) return "nicht in der Planung"; tm.DebugFight(); return "ok Kampf"; }
+                    var g = TftSession.Current;
+                    if (g == null) return "keine Partie";
+                    var me = g.players[0];
+                    return $"Runde {g.RoundName}, Leben {me.hp}, Gold {me.gold}, Stufe {me.level}, Feld {me.BoardCount}, Laden {string.Join(",", me.shop)}, Ende {g.Over}";
+                }
                 case "movepick":
                     MenuUI.Instance?.Show(MenuPage.Collection);
                     MenuUI.Instance?.DebugMovePicker(CreatureDb.Get(p[1]));

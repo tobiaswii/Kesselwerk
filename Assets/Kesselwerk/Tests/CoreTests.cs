@@ -648,7 +648,7 @@ namespace Kesselwerk.Tests
             var g = NewGame();
             Assert.AreEqual(8, g.players.Length);
             var p = g.players[0];
-            Assert.AreEqual(2, p.gold);
+            Assert.AreEqual(3, p.gold);
             Assert.IsTrue(p.shop.All(s => s != null && Tft.Cost(CreatureDb.Get(s)) == 1));
         }
 

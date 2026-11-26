@@ -36,6 +36,90 @@ namespace Kesselwerk
             return new Vector3((col - 1) * ColSpacing, 0f, isPlayer ? -z : z);
         }
 
+        // ------------------------------------------------------------------
+        // Wabenfeld (Kesselschlacht)
+        // ------------------------------------------------------------------
+        public const float HexDx = 1.5f, HexDz = 1.3f;
+
+        /// <summary>Weltposition eines Feldes auf dem gemeinsamen Wabenfeld (0–55).</summary>
+        public static Vector3 HexWorld(int board)
+        {
+            int c = Core.Hex.Col(board), r = Core.Hex.Row(board);
+            return new Vector3((c - 3f + ((r & 1) == 1 ? 0.5f : 0f) - 0.25f) * HexDx, 0f, (r - 3.5f) * HexDz);
+        }
+
+        /// <summary>Platz auf der Bank (0–8) vor dem eigenen Feld.</summary>
+        public static Vector3 BenchPos(int i) => new Vector3((i - 4f) * 1.25f, 0f, -6.3f);
+
+        static Mesh hexMesh;
+        static Mesh HexMesh
+        {
+            get
+            {
+                if (hexMesh != null) return hexMesh;
+                var v = new Vector3[7]; var t = new int[18];
+                v[0] = Vector3.zero;
+                for (int i = 0; i < 6; i++) { float a = Mathf.Deg2Rad * (60f * i + 30f); v[i + 1] = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)); }
+                for (int i = 0; i < 6; i++) { t[i * 3] = 0; t[i * 3 + 1] = 1 + (i + 1) % 6; t[i * 3 + 2] = 1 + i; }
+                hexMesh = new Mesh { name = "Wabe", vertices = v, triangles = t };
+                hexMesh.RecalculateNormals(); hexMesh.RecalculateBounds();
+                return hexMesh;
+            }
+        }
+
+        static Material UnlitMat(Color c)
+        {
+            var sh = Shader.Find("Universal Render Pipeline/Unlit");
+            var m = new Material(sh != null ? sh : Shader.Find("Sprites/Default"));
+            c.a = 1f;
+            m.SetColor("_BaseColor", c); m.color = c;
+            return m;
+        }
+
+        /// <summary>Flache Wabe mit hellem Rand (deckend, gut sichtbar). Gibt das Füllmaterial zurück (zum Hervorheben).</summary>
+        public static Material HexTile(Transform root, Vector3 pos, Color c, float size = 0.8f)
+        {
+            var go = new GameObject("Wabe");
+            go.transform.SetParent(root, false);
+            go.transform.position = pos + Vector3.up * 0.035f;
+            go.transform.localScale = new Vector3(size, 1f, size);
+            go.AddComponent<MeshFilter>().sharedMesh = HexMesh;
+            var r = go.AddComponent<MeshRenderer>();
+            var m = UnlitMat(c);
+            r.sharedMaterial = m;
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var edge = new GameObject("Rand");
+            edge.transform.SetParent(root, false);
+            edge.transform.position = pos + Vector3.up * 0.025f;
+            edge.transform.localScale = new Vector3(size * 1.1f, 1f, size * 1.1f);
+            edge.AddComponent<MeshFilter>().sharedMesh = HexMesh;
+            var er = edge.AddComponent<MeshRenderer>();
+            er.sharedMaterial = UnlitMat(Color.Lerp(c, Color.white, 0.55f));
+            er.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            return m;
+        }
+
+        public static readonly Color OwnTile = new Color(0.16f, 0.32f, 0.42f), OwnTileHi = new Color(0.25f, 0.55f, 0.75f), OwnTileUsed = new Color(0.2f, 0.42f, 0.55f);
+
+        /// <summary>Wabenfeld mit Bank. tiles[0..27] = eigene Felder (Seitenindex), für Hervorhebung beim Ziehen.</summary>
+        public static Material[] BuildHexBoard(bool planning)
+        {
+            var root = new GameObject("Wabenfeld").transform;
+            var own = new Material[Core.Hex.SideCells];
+            for (int side = 0; side < 2; side++)
+                for (int i = 0; i < Core.Hex.SideCells; i++)
+                {
+                    int b = Core.Hex.ToBoard(i, side);
+                    Color c = side == 0 ? OwnTile : (planning ? new Color(0.26f, 0.26f, 0.24f) : new Color(0.42f, 0.2f, 0.16f));
+                    var m = HexTile(root, HexWorld(b), c);
+                    if (side == 0) own[i] = m;
+                }
+            if (planning)
+                for (int i = 0; i < Core.Tft.BenchSize; i++)
+                    HexTile(root, BenchPos(i), new Color(0.38f, 0.32f, 0.2f), 0.55f);
+            return own;
+        }
+
         /// <summary>Mitte der Lichtung (Menü-Kessel).</summary>
         public static Vector3 FacePos(bool isPlayer) =>
             new Vector3(0f, 0.6f, isPlayer ? -4.1f : 4.1f);
@@ -201,7 +285,7 @@ namespace Kesselwerk
 
         static void Block(Vector3 p, float radius) => blocked.Add(new Vector3(p.x, radius, p.z));
 
-        public static void BuildArena(bool battle = true)
+        public static void BuildArena(bool battle = true, bool hex = false)
         {
             var root = new GameObject("Arena").transform;
             blocked.Clear();
@@ -220,7 +304,13 @@ namespace Kesselwerk
             if (gm.HasProperty("_Smoothness")) gm.SetFloat("_Smoothness", 0f);
 
 
-            if (battle)
+            if (hex)
+            {
+                // Wabenfeld und Bank freihalten (Deko nur außen herum)
+                for (float x = -6f; x <= 6.01f; x += 1f)
+                    for (float z = -7.5f; z <= 5.5f; z += 1f) Block(new Vector3(x, 0f, z), 0.9f);
+            }
+            else if (battle)
             {
                 // Formation freihalten und mit leuchtenden Rune-Ringen markieren
                 for (int i = 0; i < SlotCount; i++) { Block(SlotPos(true, i), 1.1f); Block(SlotPos(false, i), 1.1f); }

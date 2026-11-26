@@ -290,6 +290,29 @@ namespace Kesselwerk
         // Bausteine für Attacken-Animationen
         // ------------------------------------------------------------------
 
+        /// <summary>Auf ein neues Feld laufen (Wabenfeld); das Feld wird das neue Zuhause.</summary>
+        public IEnumerator WalkTo(Vector3 p, float time)
+        {
+            if (IsDead) yield break;
+            busy = true;
+            Vector3 d = p - transform.position; d.y = 0f;
+            if (d.sqrMagnitude > 0.001f) transform.rotation = Quaternion.LookRotation(d);
+            anim?.Play(MonsterAnimator.WalkKeys, true);
+            Vector3 s0 = transform.position;
+            for (float t = 0f; t < 1f; t += Time.deltaTime / time)
+            {
+                transform.position = Vector3.Lerp(s0, p, Mathf.Clamp01(t));
+                yield return null;
+            }
+            transform.position = p;
+            home = p;
+            if (!IsDead) anim?.PlayIdle();
+            busy = false;
+        }
+
+        /// <summary>Feste Ausrichtung (z. B. zur Gegnerseite).</summary>
+        public void SetHomeFacing(Vector3 forward) { homeRot = Quaternion.LookRotation(forward); transform.rotation = homeRot; }
+
         public float PlayClip(string[] keys) => anim != null ? anim.Play(keys, false) : 0f;
         public IEnumerator Face(Vector3 p, float time = 0.12f) { busy = true; yield return TurnTo(p, time); }
         public IEnumerator GoHome() => ReturnHome();

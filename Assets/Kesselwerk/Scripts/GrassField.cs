@@ -10,13 +10,15 @@ namespace Kesselwerk
     public class GrassField : MonoBehaviour
     {
         Mesh blade;
+        bool hexMode;
         Material mat;
         readonly List<Matrix4x4[]> batches = new List<Matrix4x4[]>();
 
-        public static GrassField Create(int region, bool battle)
+        public static GrassField Create(int region, bool battle, bool hex = false)
         {
             var go = new GameObject("Gras");
             var g = go.AddComponent<GrassField>();
+            g.hexMode = hex;
             g.Build(region, battle);
             return g;
         }
@@ -48,7 +50,8 @@ namespace Kesselwerk
                 float z = (float)(rnd.NextDouble() * 2 - 1) * 12f + 2f;
                 if (z < -6.5f && Mathf.Abs(x) < 6f) continue; // direkt vor der Kamera frei
                 float hMul = 1f;
-                if (battle && Mathf.Abs(x) < 4.8f && Mathf.Abs(z) < 4.6f) { if (rnd.NextDouble() < 0.55) continue; hMul = 0.55f; }
+                if (hexMode && Mathf.Abs(x) < 6.3f && z > -7.6f && z < 5.4f) { if (rnd.NextDouble() < 0.8) continue; hMul = 0.4f; }
+                else if (battle && Mathf.Abs(x) < 4.8f && Mathf.Abs(z) < 4.6f) { if (rnd.NextDouble() < 0.55) continue; hMul = 0.55f; }
                 if (!battle && Mathf.Abs(x) < 1.6f && z < 3.5f && z > -4.5f) continue; // Weg zum Kessel
                 float h = height * hMul * (0.65f + (float)rnd.NextDouble() * 0.7f);
                 float w = 0.05f + (float)rnd.NextDouble() * 0.04f;

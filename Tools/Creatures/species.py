@@ -52,10 +52,10 @@ def head_parts(body, s, m, head, head_r, snout_tip=None, snout_r=0.08, chest=Non
             # Oberlid als dunkler Bogen und Augenbraue – macht den Blick lebendig
             lid = sphere(f"Lid{sx}", 1, m.dark, 16, 8)
             q = V((0, -1, 0)).rotation_difference(n)
-            lid.rotation_mode = 'QUATERNION'; lid.rotation_quaternion = q @ Quaternion((0, 1, 0), -sx * math.radians(s.get("lid_tilt", 8)))
+            lid.rotation_mode = 'QUATERNION'; lid.rotation_quaternion = q @ Quaternion((0, 1, 0), -sx * math.radians(s.get("lid_tilt", 8 if s.get("dark_brows") else -6)))
             lid.location = ec + q @ V((0, -eye_s * 0.08, eye_s * 0.86)); lid.scale = (eye_s * 0.98, eye_s * 0.36, eye_s * 0.2)
             parts.append(lid)
-            if s.get("brows", True):
+            if s.get("brows", bool(s.get("dark_brows"))):
                 bp, _ = surface(body, head, V((sx * s.get("eye_spread", 0.55) * 0.9, -1, s.get("eye_up", 0.12) + 0.55)), embed=0.01)
                 br_ = leaf(f"Braue{sx}", eye_s * 0.9, eye_s * 0.42, 0.02, 0.05, m.dark if s.get("dark_brows") else m.body, tip_bend=0.1)
                 orient(br_, V((sx * 1.0, 0.15, s.get("brow_angle", 0.08))), bp); parts.append(br_)
