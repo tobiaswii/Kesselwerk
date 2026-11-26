@@ -69,6 +69,7 @@ namespace Kesselwerk
             }
             ArenaBuilder.ApplyRegionMood(stage.region);
             WeatherFx.DressRegion(stage.region);
+            GrassField.Create(stage.region, true);
             weather = arena != null ? Weather.Klar : Campaign.WeatherFor(stage.region, stage.index);
             result = BattleSim.Run(playerTeam, enemyTeam, seed, weather);
             Debug.Log($"Kesselwerk: Kampf {title} berechnet – Startwert {seed}, {result.events.Count} Ereignisse, Sieger {(result.winner == 0 ? "Spieler" : "Gegner")}");

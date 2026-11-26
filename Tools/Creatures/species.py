@@ -2,7 +2,7 @@
 Körperbaupläne: quad (Vierbeiner/Drache), biped (Zweibeiner), bird (Vogel), floater (Schwebewesen).
 Alle teilen Kopf-Anbauteile (Augen, Ohren, Hörner, Nase/Schnabel, Büschel, Akzente).
 """
-import math
+import math, random
 from gen import *
 
 sin = lambda t: math.sin(2 * math.pi * t)
@@ -49,6 +49,22 @@ def head_parts(body, s, m, head, head_r, snout_tip=None, snout_r=0.08, chest=Non
         for sx in (-1, 1):
             ec, n = surface(body, head, V((sx * s.get("eye_spread", 0.55), -1, s.get("eye_up", 0.12))), embed=eye_s * 0.22)
             parts += anime_eye(f"Auge{sx}", ec, n, eye_s, hexc(s.get("iris", "#3a7bd5")))
+            # Oberlid als dunkler Bogen und Augenbraue – macht den Blick lebendig
+            lid = sphere(f"Lid{sx}", 1, m.dark, 16, 8)
+            q = V((0, -1, 0)).rotation_difference(n)
+            lid.rotation_mode = 'QUATERNION'; lid.rotation_quaternion = q @ Quaternion((0, 1, 0), -sx * math.radians(s.get("lid_tilt", 8)))
+            lid.location = ec + q @ V((0, -eye_s * 0.08, eye_s * 0.86)); lid.scale = (eye_s * 0.98, eye_s * 0.36, eye_s * 0.2)
+            parts.append(lid)
+            if s.get("brows", True):
+                bp, _ = surface(body, head, V((sx * s.get("eye_spread", 0.55) * 0.9, -1, s.get("eye_up", 0.12) + 0.55)), embed=0.01)
+                br_ = leaf(f"Braue{sx}", eye_s * 0.9, eye_s * 0.42, 0.02, 0.05, m.dark if s.get("dark_brows") else m.body, tip_bend=0.1)
+                orient(br_, V((sx * 1.0, 0.15, s.get("brow_angle", 0.08))), bp); parts.append(br_)
+            if s.get("blush", True):
+                bl, bn = surface(body, head, V((sx * 0.75, -0.75, -0.25)), embed=0.002)
+                b2 = sphere(f"Wange{sx}r", 1, mat("Roete", hexc(s.get("blush_col", "#ff9a9a")), 0.6), 12, 8)
+                q2 = V((0, -1, 0)).rotation_difference(bn)
+                b2.rotation_mode = 'QUATERNION'; b2.rotation_quaternion = q2; b2.location = bl; b2.scale = (head_r * 0.16, head_r * 0.03, head_r * 0.1)
+                parts.append(b2)
     # Nase / Schnabel / Mund
     if beak:
         bl = s.get("beak_len", head_r * 0.7)
@@ -60,6 +76,10 @@ def head_parts(body, s, m, head, head_r, snout_tip=None, snout_r=0.08, chest=Non
         nose = sphere("Nase", 1, m.nose); place(nose, np_, scale=(snout_r * 0.5, snout_r * 0.38, snout_r * 0.36)); parts.append(nose)
         mp, _ = surface(body, snout_tip + V((0, snout_r * 0.8, -snout_r * 0.1)), V((0, -0.7, -1)), embed=0.004)
         mo = sphere("Mund", 1, m.nose, 12, 8); place(mo, mp, scale=(snout_r * 0.5, snout_r * 0.18, snout_r * 0.08)); parts.append(mo)
+        if s.get("fangs"):
+            for sx in (-1, 1):
+                fg = horn(f"Zahn{sx}", snout_r * 0.45, snout_r * 0.12, 0.05, segs=6, material=mat("Zahn", (0.98, 0.97, 0.92), 0.3))
+                orient(fg, V((0, -0.2, -1)), mp + V((sx * snout_r * 0.3, -snout_r * 0.05, 0.0))); parts.append(fg)
     else:
         mp, _ = surface(body, head, V((0, -1, -0.45)), embed=0.004)
         mo = sphere("Mund", 1, m.nose, 12, 8); place(mo, mp, scale=(head_r * 0.16, head_r * 0.05, head_r * 0.035)); parts.append(mo)
@@ -84,7 +104,7 @@ def head_parts(body, s, m, head, head_r, snout_tip=None, snout_r=0.08, chest=Non
     if s.get("horns"):
         hl, hr_ = s["horns"]
         for sx in (-1, 1):
-            hn = horn(f"Horn{sx}", hl, hr_, s.get("horn_curve", -0.35), material=m.horn)
+            hn = horn(f"Horn{sx}", hl, hr_, s.get("horn_curve", -0.35), material=m.glow if s.get("horn_glow") else m.horn)
             hp_, _ = surface(body, head, V((sx * 0.45, 0.2, 1)), embed=0.02)
             place(hn, hp_, rot=(math.radians(-25), math.radians(sx * s.get("horn_spread", 25)), 0)); parts.append(hn)
     if s.get("unihorn"):
@@ -98,7 +118,7 @@ def head_parts(body, s, m, head, head_r, snout_tip=None, snout_r=0.08, chest=Non
                 tp, _ = surface(body, head + V((0, 0, -head_r * 0.1)), V((sx, 0.05 + k * 0.25, -0.25 - k * 0.12)), embed=0.035)
                 t = leaf(f"Wange{sx}{k}", head_r * (0.5 - k * 0.08), head_r * 0.5, 0.05, 0.02, m.body, tip_bend=-0.05)
                 orient(t, V((sx * 1.0, 0.7 + k * 0.25, -0.55)), tp); parts.append(t)
-    if chest is not None and s.get("chest_tufts", True):
+    if chest is not None and s.get("chest_tufts", False):
         for k in range(4):
             tp, _ = surface(body, chest + V((0, 0, -tr * 0.1)), V(((k - 1.5) * 0.45, -1, -0.35)), embed=0.04)
             t = leaf(f"Brust{k}", tr * 0.6, tr * 0.7, 0.05, 0.02, m.belly, tip_bend=-0.1)
@@ -168,6 +188,46 @@ def body_accents(body, s, m, center, back_dir=V((0, 0, 1)), span=0.3, count=4):
     return parts
 
 
+def fur_tufts(body, s, m, center, size, count=18, spread=(1.0, 1.0, 1.0), up_only=True, mat_=None, seed=3, bone_hint="Chest"):
+    """Viele kleine Fellbüschel, die nach hinten gekämmt auf der Oberfläche sitzen (bricht die glatte Form)."""
+    rnd = random.Random(seed)
+    out = []
+    for k in range(count):
+        d = V((rnd.uniform(-1, 1) * spread[0], rnd.uniform(-1, 1) * spread[1], rnd.uniform(0.15 if up_only else -1, 1) * spread[2]))
+        if d.length < 1e-3: continue
+        p, n = surface(body, center, d, embed=size * 0.18)
+        t = leaf(f"Fell{k}", size * rnd.uniform(0.75, 1.25), size * 0.7, 0.04, 0.03, mat_ or m.body, tip_bend=-0.15)
+        comb = (n + V((0, 1.1, -0.25))).normalized()  # nach hinten gekämmt
+        basis(t, comb, n.cross(comb).cross(comb) * -1, p)
+        t["bone"] = bone_hint
+        out.append(t)
+    return out
+
+
+def mane_blob(b, center, radius, forward=V((0, -1, 0))):
+    """Weicher Fellkragen als Teil des Körpers (Metaballs), Ring quer zur Blickrichtung."""
+    for k in range(12):
+        a = k / 12 * math.tau
+        d = V((math.cos(a), 0, math.sin(a)))
+        b.ball(center + d * radius * 0.82, radius * 0.4, (1, 0.8, 1))
+
+
+def mane(body, s, m, center, radius, count=12, color_mat=None):
+    """Spitzen am Rand des Fellkragens."""
+    out = []
+    count = max(count, 22)
+    for k in range(count):
+        a = k / count * math.tau + (0.13 if k % 2 else 0)
+        d = V((math.cos(a), 0.15 + 0.2 * (k % 2), math.sin(a)))
+        p, n = surface(body, center, d, embed=radius * 0.12)
+        t = leaf(f"Maehne{k}", radius * (0.7 if k % 2 else 0.85), radius * 0.5, 0.05, 0.05, color_mat or m.acc, tip_bend=-0.25)
+        comb = (n * 1.0 + V((0, 0.9, 0))).normalized()
+        basis(t, comb, -d, p)
+        t["bone"] = "Head" if s.get("mane") == "head" else "Neck"
+        out.append(t)
+    return out
+
+
 def wings(body, s, m, root, span, chord, kind="feather"):
     parts = []
     for sx in (-1, 1):
@@ -209,6 +269,10 @@ def build_quad(s):
         b.ball(head + V((sx * head_r * 0.62, -head_r * 0.1, -head_r * 0.38)), head_r * 0.45, (1.1, 0.8, 0.8))
     if snout > 0.01:
         b.capsule(head + V((0, -head_r * 0.6, -head_r * 0.2)), snout_tip, snout_r)
+    mane_c = head + V((0, head_r * 0.4, -head_r * 0.1)) if s.get("mane") == "head" else neck_top + V((0, 0.04, -0.05))
+    mane_r = head_r * s.get("mane_size", 1.1) if s.get("mane") == "head" else tr * s.get("mane_size", 0.9)
+    if s.get("mane"):
+        mane_blob(b, mane_c, mane_r)
     legs = {}
     for side, sx in (("L", 1), ("R", -1)):
         for end, y0, r in (("V", chest.y + 0.05, leg_r), ("H", hips.y - 0.03, leg_r * 1.1)):
@@ -219,6 +283,8 @@ def build_quad(s):
             b.ball(top + V((0, 0, -0.04)), r * (2.0 if end == "H" else 1.6), (0.9, 1.1, 1.2))
             b.chain([top, knee, ankle], [r * 1.3, r * 1.0, r * 0.9])
             b.ball(ankle + V((0, -0.035, -0.025)), r * 1.25, (1.0, 1.35, 0.7))
+            for tk in (-1, 0, 1):  # Zehen
+                b.ball(ankle + V((tk * r * 0.55, -0.035 - r * 1.05, -0.04)), r * 0.42, (1, 1.2, 0.8))
             legs[side + end] = (top, knee, ankle, toe)
     tb = hips + V((0, hr * 0.9, hr * 0.2))
     tail_pts = [tb] + [tb + V((0, tail_len * (k / 4), tail_len * tail_up * math.sin((k / 4) * 1.3))) for k in range(1, 5)]
@@ -246,9 +312,23 @@ def build_quad(s):
             zones.append((m.dark, (0, hips.y - k * L * 0.28, H + tr * 0.85), (tr * 1.3, 0.035, tr * 0.4)))
     if s.get("mask"):
         zones.append((m.dark, tuple(head + V((0, -head_r * 0.6, head_r * 0.15))), (head_r * 0.95, head_r * 0.4, head_r * 0.28)))
+    if s.get("mane"):
+        zones.append((m.acc, tuple(mane_c + V((0, mane_r * 0.15, 0))), (mane_r * 1.35, mane_r * 0.45, mane_r * 1.35)))
     vcol_zones(body, m.body, zones, soft=s.get("soft", 0.3))
 
     parts = head_parts(body, s, m, head, head_r, snout_tip if snout > 0.01 else None, snout_r, chest, tr, beak=s.get("beak_quad", False))
+    if s.get("fur", True):
+        parts += fur_tufts(body, s, m, (hips + chest) / 2 + V((0, 0, tr * 0.2)), tr * 0.55, s.get("fur_n", 16), (0.8, 1.6, 1.0), seed=len(s["id"]))
+        parts += fur_tufts(body, s, m, tail_pts[2], tail_r * 1.1, 8 if s.get("tail_fluffy", True) else 0, (1, 1.5, 1), up_only=False, seed=5, bone_hint="Tail2")
+    if s.get("mane"):
+        parts += mane(body, s, m, mane_c, mane_r, s.get("mane_n", 12))
+    if s.get("claws"):
+        for k, (top, knee, ankle, toe) in legs.items():
+            if not k.endswith("V"): continue
+            for tk in (-1, 0, 1):
+                c = horn(f"Kralle{k}{tk}", leg_r * 0.7, leg_r * 0.2, 0.4, segs=6, material=m.horn)
+                cp, _ = surface(body, ankle + V((tk * leg_r * 0.55, -0.05, -0.03)), V((0, -1, -0.3)), embed=0.005)
+                orient(c, V((0, -1, -0.5)), cp); c["bone"] = f"Leg{k}3"; parts.append(c)
     parts += body_accents(body, s, m, (hips + chest) / 2 + V((0, 0, 0)), span=L * 1.1, count=s.get("back_n", 4))
     wing_parts = []
     if s.get("wings"):
@@ -278,6 +358,9 @@ def build_quad(s):
         bone = "Head"
         if p.name.startswith(("Stachel", "Kristall", "RFlamme", "RBlatt", "Panzer")): bone = "Chest"
         if p.name.startswith("Brust"): bone = "Chest"
+        if "bone" in p.keys(): bone = p["bone"]
+        if p.name.startswith("Fell") and bone == "Chest":
+            skin(p, rig, bones=["Hips", "Chest", "Neck"]); continue
         skin(p, rig, rigid=bone)
     for w in wing_parts:
         skin(w, rig, rigid="WingL" if w["side"] > 0 else "WingR")
@@ -377,6 +460,8 @@ def build_biped(s):
     b.ball(belly, br, (1.0, 0.95, 1.05)); b.ball(chest, cr, (1.1, 0.9, 0.9)); b.ball(hips, br * 0.8, (1.1, 0.95, 0.7))
     b.capsule(chest, neck_top, cr * 0.5)
     b.ball(head, head_r, (1.05, 0.98, 0.95))
+    if s.get("mane"):
+        mane_blob(b, neck_top + V((0, 0.03, -0.03)), cr * s.get("mane_size", 0.8))
     for sx in (-1, 1):
         b.ball(head + V((sx * head_r * 0.62, -head_r * 0.1, -head_r * 0.38)), head_r * 0.42, (1.1, 0.8, 0.8))
     if snout > 0.01:
@@ -411,9 +496,16 @@ def build_biped(s):
         zones.append((m.dark, tuple(head + V((0, -head_r * 0.6, head_r * 0.15))), (head_r * 0.95, head_r * 0.4, head_r * 0.28)))
     if tail_pts and s.get("tail_tip", True):
         zones.append((m.glow if s.get("tail_tip_glow") else m.acc, tuple(tail_pts[-1]), (0.12, 0.12, 0.12)))
+    if s.get("mane"):
+        mr = cr * s.get("mane_size", 0.8)
+        zones.append((m.acc, tuple(neck_top + V((0, 0.05, -0.03))), (mr * 1.2, mr * 0.9, mr * 1.1)))
     vcol_zones(body, m.body, zones, soft=0.3)
     parts = head_parts(body, s, m, head, head_r, snout_tip if snout > 0.01 else None, snout_r, chest, cr)
     parts += body_accents(body, s, m, chest + V((0, cr * 0.2, 0)), back_dir=V((0, 1, 0.4)), span=0.25, count=s.get("back_n", 3))
+    if s.get("fur", False):
+        parts += fur_tufts(body, s, m, chest + V((0, cr * 0.3, 0)), cr * 0.5, s.get("fur_n", 12), (1.0, 0.6, 1.0), seed=len(s["id"]))
+    if s.get("mane"):
+        parts += mane(body, s, m, neck_top + V((0, 0.03, -0.02)), cr * s.get("mane_size", 0.8), s.get("mane_n", 12))
     if s.get("claws"):
         for side, sx in (("L", 1), ("R", -1)):
             for k in range(3):
@@ -442,6 +534,7 @@ def build_biped(s):
         bone = "Head"
         if p.name.startswith(("Stachel", "Kristall", "RFlamme", "RBlatt", "Panzer", "Brust")): bone = "Chest"
         if p.name.startswith("Kralle"): bone = f"Arm{p['arm']}2"
+        if p.name.startswith(("Fell", "Maehne")): bone = "Chest"
         skin(p, rig, rigid=bone)
     for w in wing_parts: skin(w, rig, rigid="WingL" if w["side"] > 0 else "WingR")
     biped_anims(rig.obj, bool(wing_parts))

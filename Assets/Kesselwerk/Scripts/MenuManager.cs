@@ -30,6 +30,7 @@ namespace Kesselwerk
 
             cam = ArenaBuilder.SetupCameraAndLight();
             ArenaBuilder.BuildArena(false);
+            GrassField.Create(0, false);
             SpawnPals();
 
             int crystals = Progress.DailyLogin(Game.Data, Game.Today);

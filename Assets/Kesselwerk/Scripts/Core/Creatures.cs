@@ -375,6 +375,54 @@ namespace Kesselwerk.Core
                 1060, 115, 45, 108, 0.09f, true,
                 new SkillDef("Eissturm", SkillKind.DebuffDefense, 0.40f, 3, "Ein Eissturm senkt die Verteidigung aller Gegner um 40 %."),
                 Passive.Startschild, "Wo er schläft, wachsen Eisblumen an den Fenstern.");
+            Add("schakalwaechter", new[] { "Schakalwächter", "Sonnenwächter" }, "Gen_Schakalwaechter", Element.Schatten, Rarity.Legendaer, Role.Angreifer,
+                960, 156, 36, 114, 0.14f, false,
+                new SkillDef("Urteil der Dünen", SkillKind.Execute, 1.90f, 0, "Doppelter Schaden gegen angeschlagene Gegner."),
+                Passive.Kritmeister, "Bewacht seit Jahrhunderten ein Grab, dessen Namen niemand kennt.");
+            Add("kitsune", new[] { "Flammenkitsune", "Neunschweif" }, "Gen_Kitsune", Element.Feuer, Rarity.Episch, Role.Support,
+                1000, 109, 43, 108, 0.09f, true,
+                new SkillDef("Fuchsfeuer", SkillKind.BuffAttack, 0.35f, 3, "Geisterflammen geben allen Verbündeten +35 % Angriff."),
+                Passive.Elementkraft, "Ihre Flammen brennen blau, wenn sie lügt – also nie.");
+            Add("wolfsritter", new[] { "Frostritter", "Gletscherritter" }, "Gen_Wolfsritter", Element.Eis, Rarity.Episch, Role.Tank,
+                1440, 73, 72, 76, 0.05f, false,
+                new SkillDef("Eisschild", SkillKind.ShieldAll, 0.70f, 0, "Ein Eisschild schützt alle Verbündeten."),
+                Passive.Startschild, "Hat geschworen, niemals einen Freund im Schnee zurückzulassen.");
+            Add("katzenninja", new[] { "Schattenpfote", "Nachtklinge" }, "Gen_Katzenninja", Element.Schatten, Rarity.Selten, Role.Angreifer,
+                820, 130, 34, 110, 0.14f, false,
+                new SkillDef("Schattenschnitt", SkillKind.Cleave, 1.40f, 0, "Ein lautloser Schnitt trifft das Ziel und seine Nachbarn."),
+                Passive.Ausweichen, "Man hört sie nie kommen. Nur das leise Schnurren danach.");
+            Add("echsenkrieger", new[] { "Sandechse", "Wüstenkrieger" }, "Gen_Echsenkrieger", Element.Erde, Rarity.Selten, Role.Angreifer,
+                820, 130, 34, 110, 0.14f, false,
+                new SkillDef("Dünenhieb", SkillKind.Strike, 1.75f, 0, "Ein wuchtiger Schwanzhieb."),
+                Passive.Wut, "Schläft tagsüber im heißen Sand und kämpft nachts mit dem Mond um die Wette.");
+            Add("maehnenloewe", new[] { "Glutlöwe", "Sonnenkönig" }, "Gen_Maehnenloewe", Element.Feuer, Rarity.Legendaer, Role.Tank,
+                1580, 77, 71, 76, 0.05f, false,
+                new SkillDef("Königsbrüllen", SkillKind.Taunt, 1.20f, 3, "Ein Brüllen: Schild und alle Angriffe auf sich ziehen."),
+                Passive.Wut, "Wenn er brüllt, verstummen selbst die Vulkane.");
+            Add("blitzhase", new[] { "Blitzhase", "Donnerhase" }, "Gen_Blitzhase", Element.Blitz, Rarity.Ungewoehnlich, Role.Angreifer,
+                790, 125, 33, 110, 0.14f, false,
+                new SkillDef("Donnersprung", SkillKind.Stun, 1.35f, 1, "Ein elektrischer Sprung betäubt das Ziel."),
+                Passive.Ausweichen, "Springt so schnell, dass sein Fell knistert.");
+            Add("kristallhirsch", new[] { "Kristallhirsch", "Runenhirsch" }, "Gen_Kristallhirsch", Element.Arkan, Rarity.Legendaer, Role.Heiler,
+                940, 98, 41, 108, 0.06f, true,
+                new SkillDef("Kristallquelle", SkillKind.HealAll, 1.35f, 0, "Kristallines Licht heilt alle Verbündeten."),
+                Passive.Regeneration, "Sein Geweih wächst aus reinem Mondkristall.");
+            Add("seerobbe", new[] { "Wellenrobbe", "Eismeerrobbe" }, "Gen_Seerobbe", Element.Wasser, Rarity.Gewoehnlich, Role.Tank,
+                1200, 64, 60, 76, 0.05f, false,
+                new SkillDef("Bauchklatscher", SkillKind.Taunt, 0.95f, 3, "Klatscht auf den Bauch: Schild und provozieren."),
+                Passive.Startschild, "Liegt am liebsten auf warmen Steinen und lässt sich bewundern.");
+            Add("nachtfalke", new[] { "Nachtfalke", "Mondschwinge" }, "Gen_Nachtfalke", Element.Schatten, Rarity.Ungewoehnlich, Role.Support,
+                920, 100, 41, 108, 0.09f, true,
+                new SkillDef("Mondschatten", SkillKind.DebuffDefense, 0.30f, 3, "Senkt die Verteidigung aller Gegner um 30 %."),
+                Passive.Ausweichen, "Fliegt nur bei Vollmond. Den Rest des Monats schmollt er.");
+            Add("bluetenfee", new[] { "Blütenfee", "Waldfee" }, "Gen_Bluetenfee", Element.Natur, Rarity.Selten, Role.Heiler,
+                840, 89, 39, 108, 0.06f, true,
+                new SkillDef("Blütenregen", SkillKind.HealAll, 1.15f, 0, "Ein Blütenregen heilt alle Verbündeten."),
+                Passive.Regeneration, "Schläft in Glockenblumen und weckt morgens den Tau.");
+            Add("wollknaeuel", new[] { "Wollknäuel", "Flauschwidder" }, "Gen_Wollknaeuel", Element.Luft, Rarity.Gewoehnlich, Role.Support,
+                880, 96, 40, 108, 0.09f, true,
+                new SkillDef("Kuschelwolke", SkillKind.ShieldAll, 0.50f, 0, "Eine weiche Wollwolke schützt alle Verbündeten."),
+                Passive.Startschild, "Besteht zu neunzig Prozent aus Wolle und zu zehn Prozent aus guter Laune.");
 
             // ---------- Bosse (nur in der Kampagne) ----------
             AddBoss("boss_hain", "Uralter Hainriese", "Gen_Moosmampf", Element.Natur, 3600, 105, 60, 80,

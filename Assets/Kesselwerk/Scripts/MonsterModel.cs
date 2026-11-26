@@ -72,9 +72,47 @@ namespace Kesselwerk
             if (toon == null) toon = Resources.Load<Shader>("Shaders/Kreatur");
             if (toon == null) toon = Shader.Find("Kesselwerk/Kreatur");
             var m = new Material(toon);
+            m.SetTexture("_FurTex", FurNoise());
             if (tex != null) m.SetTexture("_BaseMap", tex);
             m.SetColor("_BaseColor", color);
             return m;
+        }
+
+        static Texture2D furNoise;
+
+        /// <summary>Kachelbares, länglich gestrecktes Rauschen – wirkt auf der Oberfläche wie feine Fellsträhnen.</summary>
+        public static Texture2D FurNoise()
+        {
+            if (furNoise != null) return furNoise;
+            const int N = 128;
+            var rnd = new System.Random(42);
+            float[,] Lattice(int gx, int gy)
+            {
+                var g = new float[gx, gy];
+                for (int x = 0; x < gx; x++) for (int y = 0; y < gy; y++) g[x, y] = (float)rnd.NextDouble();
+                return g;
+            }
+            float Sample(float[,] g, float u, float v)
+            {
+                int gx = g.GetLength(0), gy = g.GetLength(1);
+                float fx = u * gx, fy = v * gy;
+                int x0 = (int)fx, y0 = (int)fy; float tx = fx - x0, ty = fy - y0;
+                tx = tx * tx * (3 - 2 * tx); ty = ty * ty * (3 - 2 * ty);
+                float a = g[x0 % gx, y0 % gy], b = g[(x0 + 1) % gx, y0 % gy], c = g[x0 % gx, (y0 + 1) % gy], d = g[(x0 + 1) % gx, (y0 + 1) % gy];
+                return Mathf.Lerp(Mathf.Lerp(a, b, tx), Mathf.Lerp(c, d, tx), ty);
+            }
+            var fine = Lattice(48, 8); var mid = Lattice(16, 4); var coarse = Lattice(6, 6);
+            var px = new Color[N * N];
+            for (int y = 0; y < N; y++)
+                for (int x = 0; x < N; x++)
+                {
+                    float u = x / (float)N, v = y / (float)N;
+                    float val = Sample(fine, u, v) * 0.55f + Sample(mid, u, v) * 0.3f + Sample(coarse, u, v) * 0.15f;
+                    px[y * N + x] = new Color(val, val, val, 1f);
+                }
+            furNoise = new Texture2D(N, N, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Trilinear, name = "Fellrauschen" };
+            furNoise.SetPixels(px); furNoise.Apply(true);
+            return furNoise;
         }
 
         public static Bounds CalcBounds(GameObject go)

@@ -372,6 +372,41 @@ def fix_normals(o):
     bm.to_mesh(o.data); bm.free()
 
 
+def bake_ao(obj, rays=10, dist=0.22, strength=0.55):
+    """Einfache Umgebungsverdeckung je Eckpunkt: Spalten, Achseln und Unterseite werden dunkler."""
+    from mathutils.bvhtree import BVHTree
+    import random as _r
+    me = obj.data
+    bm = bmesh.new(); bm.from_mesh(me); bm.transform(obj.matrix_world)
+    bvh = BVHTree.FromBMesh(bm); bm.free()
+    rnd = _r.Random(7)
+    dirs = []
+    for _ in range(rays):
+        while True:
+            d = V((rnd.uniform(-1, 1), rnd.uniform(-1, 1), rnd.uniform(-1, 1)))
+            if 0.1 < d.length <= 1: break
+        dirs.append(d.normalized())
+    zmin = min((obj.matrix_world @ v.co).z for v in me.vertices)
+    zmax = max((obj.matrix_world @ v.co).z for v in me.vertices)
+    occ = []
+    for v in me.vertices:
+        p = obj.matrix_world @ v.co
+        n = (obj.matrix_world.to_3x3() @ v.normal).normalized()
+        hit = 0
+        for d in dirs:
+            if d.dot(n) < 0: d = -d
+            d = (d + n * 0.3).normalized()
+            if bvh.ray_cast(p + n * 0.004, d, dist)[0] is not None: hit += 1
+        h = (p.z - zmin) / max(1e-4, zmax - zmin)
+        occ.append(min(1.0, hit / rays * strength + (1 - min(1, h * 3)) * 0.18))
+    ca = me.color_attributes["Col"]
+    for li, loop in enumerate(me.loops):
+        c = ca.data[li].color
+        k = 1.0 - occ[loop.vertex_index]
+        if c[3] < 0.99: k = 1.0  # Leuchtstellen nicht abdunkeln
+        ca.data[li].color = (c[0] * k, c[1] * k, c[2] * k, c[3])
+
+
 def finalize(meshes, rig):
     """Alle Teile zu einem Mesh mit einem Material zusammenführen (Gewichte bleiben erhalten)."""
     for o in meshes[1:]:
@@ -387,6 +422,7 @@ def finalize(meshes, rig):
     bpy.ops.object.join()
     body = bpy.context.view_layer.objects.active
     body.name = "Kreatur"
+    bake_ao(body)
     mod = body.modifiers.new("Armature", 'ARMATURE'); mod.object = rig.obj
     body.parent = rig.obj
     return body

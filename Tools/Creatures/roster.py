@@ -218,6 +218,84 @@ ROSTER = [
            tail_r=0.12, tail_len=0.6, tail_up=0.25, ears="none", tufts=False, chest_tufts=False, snout=0.16, socks=False)),
 ]
 
+# ---------------- Neue Runde: detailreicher, Palworld-nah ----------------
+ROSTER += [
+    C("schakalwaechter", ["Schakalwächter", "Sonnenwächter"], "Schatten", "Legendaer", "Angreifer", False,
+      S("Urteil der Dünen", "Execute", 1.9, 0, "Doppelter Schaden gegen angeschlagene Gegner."), "Kritmeister",
+      "Bewacht seit Jahrhunderten ein Grab, dessen Namen niemand kennt.",
+      dict(type="biped", body="#2a2a33", belly="#d8b46a", dark="#151518", accent="#e0b040", glow="#ffd23a", iris="#ffd23a",
+           ears="pointy", ear_len=0.3, ear_w=0.14, snout=0.16, snout_r=0.07, leg_len=0.42, belly_r=0.15, chest_r=0.17, head_r=0.2,
+           arm_r=0.05, arm_len=0.4, shoulder_w=0.2, tail_len=0.35, tail_r=0.06, fangs=True, claws=True, mane=True, mane_size=0.7,
+           dark_brows=True, blush=False, head_accent="crystal"), tweak=(1.05, 1.08, 1, 4)),
+    C("kitsune", ["Flammenkitsune", "Neunschweif"], "Feuer", "Episch", "Support", True,
+      S("Fuchsfeuer", "BuffAttack", 0.35, 3, "Geisterflammen geben allen Verbündeten +35 % Angriff."), "Elementkraft",
+      "Ihre Flammen brennen blau, wenn sie lügt – also nie.",
+      dict(type="biped", body="#f2f2f6", belly="#ffffff", dark="#c43a3a", accent="#ff6a3a", glow="#ffb03a", iris="#e0403a",
+           ears="pointy", ear_len=0.3, ear_w=0.17, snout=0.11, snout_r=0.06, leg_len=0.36, belly_r=0.15, chest_r=0.16, head_r=0.22,
+           arm_r=0.048, arm_len=0.36, tail_len=0.55, tail_r=0.13, tail_fluffy=True, tail_tip_glow=True, head_accent="flames",
+           blush_col="#ff7a8a")),
+    C("wolfsritter", ["Frostritter", "Gletscherritter"], "Eis", "Episch", "Tank", False,
+      S("Eisschild", "ShieldAll", 0.7, 0, "Ein Eisschild schützt alle Verbündeten."), "Startschild",
+      "Hat geschworen, niemals einen Freund im Schnee zurückzulassen.",
+      dict(type="biped", body="#cfdcec", belly="#ffffff", dark="#3a4a66", accent="#eef6ff", glow="#9fe8ff", iris="#2a7fd6",
+           ears="pointy", ear_len=0.24, ear_w=0.15, snout=0.15, snout_r=0.08, leg_len=0.38, belly_r=0.2, chest_r=0.22, head_r=0.22,
+           arm_r=0.07, arm_len=0.4, shoulder_w=0.24, tail_len=0.4, tail_r=0.11, fangs=True, mane=True, mane_size=0.85,
+           back="crystals", back_n=3, dark_brows=True, blush=False), tweak=(1.05, 1, 1.1, 0)),
+    C("katzenninja", ["Schattenpfote", "Nachtklinge"], "Schatten", "Selten", "Angreifer", False,
+      S("Schattenschnitt", "Cleave", 1.4, 0, "Ein lautloser Schnitt trifft das Ziel und seine Nachbarn."), "Ausweichen",
+      "Man hört sie nie kommen. Nur das leise Schnurren danach.",
+      dict(type="biped", body="#3a3550", belly="#9a90c8", dark="#1a1626", accent="#c84a6a", glow="#ff6a9a", iris="#b8ff5a",
+           ears="pointy", ear_len=0.2, ear_w=0.17, snout=0.04, leg_len=0.36, belly_r=0.14, chest_r=0.15, head_r=0.22, arm_r=0.045,
+           arm_len=0.36, tail_len=0.5, tail_r=0.05, tail_fluffy=False, tail_tip_glow=True, claws=True, mask=True)),
+    C("echsenkrieger", ["Sandechse", "Wüstenkrieger"], "Erde", "Selten", "Angreifer", False,
+      S("Dünenhieb", "Strike", 1.75, 0, "Ein wuchtiger Schwanzhieb."), "Wut",
+      "Schläft tagsüber im heißen Sand und kämpft nachts mit dem Mond um die Wette.",
+      dict(type="biped", body="#c9963a", belly="#f6e3b0", dark="#6a4a1a", accent="#2a9d8f", iris="#2a9d8f", ears="none",
+           tufts=False, snout=0.15, snout_r=0.08, leg_len=0.34, belly_r=0.17, chest_r=0.18, head_r=0.2, arm_r=0.055, arm_len=0.36,
+           tail_len=0.55, tail_r=0.11, tail_fluffy=False, back="spikes", back_n=4, claws=True, fangs=True, blush=False)),
+    C("maehnenloewe", ["Glutlöwe", "Sonnenkönig"], "Feuer", "Legendaer", "Tank", False,
+      S("Königsbrüllen", "Taunt", 1.2, 3, "Ein Brüllen: Schild und alle Angriffe auf sich ziehen."), "Wut",
+      "Wenn er brüllt, verstummen selbst die Vulkane.",
+      dict(type="quad", body="#e0a24a", belly="#fff0d0", dark="#5a3418", accent="#a8421e", iris="#e07a1a", glow="#ffb03a",
+           mane="head", mane_size=1.15, mane_n=24, ears="round", ear_w=0.12, snout=0.11, snout_r=0.1, fangs=True, claws=True,
+           tail_fluffy=False, tail_r=0.06, tail_len=0.5, tail_up=0.4, body_len=0.6, chest_r=0.23, head_r=0.23, tufts=False,
+           tail_tip_glow=True), tweak=(1.1, 1, 1.05, 0)),
+    C("blitzhase", ["Blitzhase", "Donnerhase"], "Blitz", "Ungewoehnlich", "Angreifer", False,
+      S("Donnersprung", "Stun", 1.35, 1, "Ein elektrischer Sprung betäubt das Ziel."), "Ausweichen",
+      "Springt so schnell, dass sein Fell knistert.",
+      dict(type="quad", body="#f2e6a0", belly="#ffffff", dark="#6a5a2a", accent="#3a6aff", glow="#fff36b", iris="#3a6aff",
+           ears="long", ear_len=0.3, ear_w=0.15, snout=0.05, body_len=0.42, tail_len=0.12, tail_r=0.1, socks=False,
+           head_accent="antenna")),
+    C("kristallhirsch", ["Kristallhirsch", "Runenhirsch"], "Arkan", "Legendaer", "Heiler", True,
+      S("Kristallquelle", "HealAll", 1.35, 0, "Kristallines Licht heilt alle Verbündeten."), "Regeneration",
+      "Sein Geweih wächst aus reinem Mondkristall.",
+      dict(type="quad", body="#e8e4f6", belly="#ffffff", dark="#5a4a8a", accent="#9fe8ff", glow="#9ff0ff", iris="#7a5cff",
+           horns=(0.36, 0.04), horn_curve=-0.15, horn_spread=38, horn_glow=True, ear_len=0.2, ear_w=0.13, neck=0.3, leg_r=0.055,
+           body_h=0.52, body_len=0.5, tail_len=0.12, tail_r=0.07, snout=0.15, socks=False, back="crystals", back_n=3)),
+    C("seerobbe", ["Wellenrobbe", "Eismeerrobbe"], "Wasser", "Gewoehnlich", "Tank", False,
+      S("Bauchklatscher", "Taunt", 0.95, 3, "Klatscht auf den Bauch: Schild und provozieren."), "Startschild",
+      "Liegt am liebsten auf warmen Steinen und lässt sich bewundern.",
+      dict(type="quad", body="#8aa8c0", belly="#e8f0f6", dark="#3a4a5a", iris="#1a3a6a", ears="none", tufts=False,
+           body_len=0.6, body_h=0.26, leg_r=0.065, chest_r=0.26, hip_r=0.22, snout=0.08, snout_r=0.11, tail_fluffy=False,
+           tail_r=0.1, tail_len=0.3, tail_up=0.05)),
+    C("nachtfalke", ["Nachtfalke", "Mondschwinge"], "Schatten", "Ungewoehnlich", "Support", True,
+      S("Mondschatten", "DebuffDefense", 0.3, 3, "Senkt die Verteidigung aller Gegner um 30 %."), "Ausweichen",
+      "Fliegt nur bei Vollmond. Den Rest des Monats schmollt er.",
+      dict(type="bird", body="#2e2a4a", belly="#8a80c0", accent="#5a4aa0", iris="#ffd23a", head_accent="crest", hover=0.15,
+           beak="#c9b06a", beak_curve=0.6, glow="#c38cff")),
+    C("bluetenfee", ["Blütenfee", "Waldfee"], "Natur", "Selten", "Heiler", True,
+      S("Blütenregen", "HealAll", 1.15, 0, "Ein Blütenregen heilt alle Verbündeten."), "Regeneration",
+      "Schläft in Glockenblumen und weckt morgens den Tau.",
+      dict(type="floater", body="#ffd6e8", belly="#ffffff", glow="#b8ff7a", accent="#8ad04a", iris="#2a8a3a", head_accent="leaves",
+           wings=True, wing_kind="bat", wing_acc=True, wing_span=0.45, back=None)),
+    C("wollknaeuel", ["Wollknäuel", "Flauschwidder"], "Luft", "Gewoehnlich", "Support", True,
+      S("Kuschelwolke", "ShieldAll", 0.5, 0, "Eine weiche Wollwolke schützt alle Verbündeten."), "Startschild",
+      "Besteht zu neunzig Prozent aus Wolle und zu zehn Prozent aus guter Laune.",
+      dict(type="quad", body="#fbf6ee", belly="#e8dcff", dark="#6a5a7a", iris="#7a5cff", horns=(0.1, 0.03), horn_curve=1.0,
+           horn_spread=70, ears="droopy", ear_len=0.14, ear_w=0.13, body_len=0.36, body_h=0.3, chest_r=0.27, hip_r=0.27,
+           snout=0.05, tail_len=0.1, tail_r=0.1, head_r=0.24, fur_n=40, socks=True)),
+]
+
 
 def stats(c):
     hp, atk, de, spd, crit = BASE[c["role"]]
@@ -225,6 +303,12 @@ def stats(c):
     t = c["tweak"]
     return (round(hp * mul * t[0] / 10) * 10, round(atk * mul * t[1]), round(de * (1 + (mul - 1) * 0.6) * t[2]),
             spd + t[3] + (4 if c["ranged"] else 0), crit)
+
+
+PREDATORS = {"glutfuchs", "frostwolf", "voltwolf", "schattenkatze", "volttiger", "lavaeber", "aschekobold"}
+for _c in ROSTER:
+    if _c["id"] in PREDATORS:
+        _c["model"].setdefault("fangs", True); _c["model"].setdefault("claws", True)
 
 
 def model_name(c):
