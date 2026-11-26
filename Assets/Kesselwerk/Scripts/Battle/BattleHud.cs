@@ -30,7 +30,7 @@ namespace Kesselwerk
         Canvas canvas;
         CanvasScaler scaler;
 
-        public void Init(AutoBattleManager manager, Camera camera, StageDef stage)
+        public void Init(AutoBattleManager manager, Camera camera, string title)
         {
             bm = manager;
             cam = camera;
@@ -51,7 +51,7 @@ namespace Kesselwerk
             UIKit.Stretch(topBg.rectTransform, 0, -40, 0, 0);
             topBg.rectTransform.localScale = new Vector3(1f, -1f, 1f);
 
-            titleText = UIKit.Text(top, "Titel", $"{Campaign.RegionNames[stage.region]}  ·  {stage.name}", 40f, Color.white, TextAlignmentOptions.MidlineLeft, true);
+            titleText = UIKit.Text(top, "Titel", title, 40f, Color.white, TextAlignmentOptions.MidlineLeft, true);
             titleText.rectTransform.anchorMin = new Vector2(0f, 0f);
             titleText.rectTransform.anchorMax = new Vector2(0.6f, 1f);
             titleText.rectTransform.offsetMin = new Vector2(30f, 0f);
@@ -320,7 +320,7 @@ namespace Kesselwerk
         // Ergebnis
         // ------------------------------------------------------------------
 
-        public void ShowResult(bool won, Rewards rw, BattleResult result, System.Action onContinue, System.Action onRetry)
+        public void ShowResult(bool won, Rewards rw, BattleResult result, System.Action onContinue, System.Action onRetry, string extra = null)
         {
             overlay.gameObject.SetActive(true);
             UX.Clear(overlay);
@@ -350,7 +350,8 @@ namespace Kesselwerk
             if (rw.gear.Count > 0) sb.Append($"\n<color=#7fe3ff>Ausrüstung gefunden: {string.Join(", ", rw.gear)}</color>");
             if (rw.firstClear) sb.Append("\n<size=80%><color=#ffd23f>Erstmals geschafft!</color></size>");
             if (rw.levelUps.Count > 0) sb.Append("\n<size=75%>Aufgestiegen: " + string.Join(", ", rw.levelUps) + "</size>");
-            if (!won) sb.Append("\n<size=75%><color=#bbbbcc>Tipp: Stärke dein Team mit Tränken, Fusion oder Elementvorteilen.</color></size>");
+            if (!string.IsNullOrEmpty(extra)) sb.Append("\n" + extra);
+            if (!won) sb.Append("\n<size=75%><color=#bbbbcc>Tipp: Stärke dein Team mit Tränken, Fusion, Ausrüstung oder Elementvorteilen.</color></size>");
             var rewards = UIKit.Text(panel.transform, "Belohnung", sb.ToString(), 36f, Color.white, TextAlignmentOptions.Top);
             rewards.rectTransform.anchorMin = new Vector2(0f, 1f);
             rewards.rectTransform.anchorMax = new Vector2(1f, 1f);

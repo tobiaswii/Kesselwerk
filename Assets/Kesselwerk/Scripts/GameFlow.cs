@@ -4,7 +4,7 @@ using UnityEngine.SceneManagement;
 
 namespace Kesselwerk
 {
-    public enum MenuPage { Home, Campaign, Summon, Collection, Team, Settings }
+    public enum MenuPage { Home, Campaign, Summon, Collection, Team, Settings, Arena }
 
     /// <summary>
     /// Wechselt zwischen Menü und Kampf, ohne Szenen laden zu müssen:

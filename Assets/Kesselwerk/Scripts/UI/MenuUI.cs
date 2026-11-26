@@ -180,6 +180,7 @@ namespace Kesselwerk
                 case MenuPage.Collection: BuildCollection(); break;
                 case MenuPage.Team: BuildTeam(); break;
                 case MenuPage.Settings: BuildSettings(); break;
+                case MenuPage.Arena: BuildArena(); break;
             }
         }
 
@@ -233,7 +234,7 @@ namespace Kesselwerk
                 ("Sammlung", UX.Blue, MenuPage.Collection, null),
                 ("Team", UX.Green, MenuPage.Team, null),
                 ("Aufgaben", new Color(0.75f, 0.45f, 0.2f), null, ShowTasks),
-                ("Arena (Online)", UX.Grey, null, () => Toast("Online-Arena folgt: Server auf deinem Homeserver ist in Vorbereitung.")),
+                ("Arena (Online)", new Color(0.75f, 0.25f, 0.3f), MenuPage.Arena, null),
                 ("Einstellungen", new Color(0.3f, 0.32f, 0.4f), MenuPage.Settings, null),
             };
             int cols = P ? 2 : 1;
@@ -1074,6 +1075,169 @@ namespace Kesselwerk
             Toast("Stärkste Kreaturen aufgestellt.");
         }
 
+        // ---------------- Arena (online) ----------------
+
+        OnlineMatch currentMatch;
+        List<OnlineBoardEntry> board;
+
+        static Color RankColor(string rank)
+        {
+            switch (rank)
+            {
+                case "Silber": return new Color(0.8f, 0.82f, 0.88f);
+                case "Gold": return new Color(1f, 0.8f, 0.3f);
+                case "Platin": return new Color(0.5f, 0.95f, 0.9f);
+                case "Diamant": return new Color(0.5f, 0.75f, 1f);
+                case "Meister": return new Color(0.8f, 0.45f, 1f);
+                case "Legende": return new Color(1f, 0.4f, 0.35f);
+                default: return new Color(0.85f, 0.55f, 0.3f);
+            }
+        }
+
+        void BuildArena()
+        {
+            var head = Area(0f, 0.9f, 1f, 1f);
+            Heading(head, "Arena  <size=55%>Online gegen echte Spieler</size>", 52f);
+
+            var left = P ? Area(0.03f, 0.46f, 0.97f, 0.89f) : Area(0.02f, 0.03f, 0.56f, 0.89f);
+            var lbg = UX.Panel(left, "Profil", UX.PanelDark);
+            UIKit.Stretch(lbg.rectTransform);
+
+            if (!Online.HasAccount)
+            {
+                var t = UIKit.Text(left, "Info",
+                    "<b>So funktioniert die Arena</b>\n\n• Du stellst ein <b>Verteidigungsteam</b> auf – andere Spieler kämpfen dagegen, auch wenn du offline bist.\n" +
+                    "• Du greifst Teams anderer Spieler an. Den Kampf berechnet der <b>Server</b>, so ist Schummeln ausgeschlossen.\n" +
+                    "• Siege bringen Wertung: Bronze, Silber, Gold, Platin, Diamant, Meister, Legende.\n\nDafür brauchst du ein Online-Konto (ohne E-Mail, nur ein Name).",
+                    30f, Color.white, TextAlignmentOptions.TopLeft);
+                UIKit.Stretch(t.rectTransform, 40, 160, 40, 40);
+                t.enableAutoSizing = true; t.fontSizeMin = 16; t.fontSizeMax = 30;
+                var reg = Btn(left, "Online-Konto anlegen", UX.Accent, () =>
+                {
+                    string name = D.playerName == "Kesselmeister" ? "Kesselmeister" + Random.Range(100, 999) : D.playerName;
+                    Online.Register(name, r =>
+                    {
+                        D.playerName = r.name;
+                        Game.Save();
+                        Online.SetDefense(D.BuildTeam(), null, null);
+                        Toast($"Willkommen in der Arena, {r.name}!");
+                        Show(MenuPage.Arena);
+                    }, e => Toast(e));
+                }, 38f);
+                UIKit.Place((RectTransform)reg.transform, new Vector2(0.5f, 0f), new Vector2(0f, 80f), new Vector2(520f, 110f));
+                BuildBoard();
+                return;
+            }
+
+            var status = UIKit.Text(left, "Status", "Verbinde mit dem Server …", 30f, Color.white, TextAlignmentOptions.TopLeft);
+            UIKit.Stretch(status.rectTransform, 40, 380, 40, 30);
+            status.enableAutoSizing = true; status.fontSizeMin = 16; status.fontSizeMax = 32;
+            Online.Profile(me =>
+            {
+                if (status == null) return;
+                string c = Look.Hex(RankColor(me.rang));
+                status.text = $"<size=120%><b>{me.name}</b></size>\n" +
+                              $"<color={c}><b>{me.rang}</b></color>  ·  Wertung <b>{me.wertung}</b>  ·  Platz <b>{me.platz}</b>\n" +
+                              $"Angriffe: {me.siege} Siege / {me.niederlagen} Niederlagen\n" +
+                              $"Verteidigung: {me.verteidigungSiege} gehalten / {me.verteidigungNiederlagen} verloren" +
+                              (me.verteidigung == 0 ? "\n<color=#ffb36b>Noch kein Verteidigungsteam gesetzt!</color>" : "");
+            }, e => { if (status != null) status.text = $"<color=#ff8a6b>{e}</color>\n<size=80%>Läuft der Server? {Online.BaseUrl}</size>"; });
+
+            // Gegnerbereich
+            var opp = UIKit.Rect("Gegner", left);
+            opp.anchorMin = new Vector2(0f, 0f);
+            opp.anchorMax = new Vector2(1f, 0f);
+            opp.pivot = new Vector2(0.5f, 0f);
+            opp.anchoredPosition = new Vector2(0f, 150f);
+            opp.sizeDelta = new Vector2(-40f, 220f);
+            if (currentMatch != null)
+            {
+                var m = currentMatch;
+                var ot = UIKit.Text(opp, "Name", $"Gegner: <b>{m.gegner}</b>  <color={Look.Hex(RankColor(m.rang))}>{m.rang}</color>  ({m.wertung})", 28f, Color.white, TextAlignmentOptions.TopLeft);
+                ot.rectTransform.anchorMin = new Vector2(0f, 1f);
+                ot.rectTransform.anchorMax = new Vector2(1f, 1f);
+                ot.rectTransform.pivot = new Vector2(0.5f, 1f);
+                ot.rectTransform.sizeDelta = new Vector2(0f, 44f);
+                for (int i = 0; i < m.units.Count; i++)
+                {
+                    var u = m.units[i];
+                    var d = CreatureDb.Get(u.id);
+                    if (d == null) continue;
+                    var cell = UIKit.Img(opp, "Einheit", UIKit.Rounded, new Color(1f, 1f, 1f, 0.07f));
+                    UIKit.Anchor(cell.rectTransform, (i % 3) / 3f, i < 3 ? 0.4f : 0f, (i % 3 + 1) / 3f, i < 3 ? 0.78f : 0.38f);
+                    cell.rectTransform.offsetMin = new Vector2(4f, 2f);
+                    cell.rectTransform.offsetMax = new Vector2(-4f, -2f);
+                    var chip = UX.ElementChip(cell.transform, d.element, 40f);
+                    chip.anchorMin = chip.anchorMax = new Vector2(0f, 0.5f);
+                    chip.anchoredPosition = new Vector2(28f, 0f);
+                    var nt = UIKit.Text(cell.transform, "N", $"{d.StageName(u.stage)} <size=80%>Lv{u.level}</size>", 22f, Color.white, TextAlignmentOptions.MidlineLeft, true);
+                    UIKit.Stretch(nt.rectTransform, 54, 0, 4, 0);
+                    nt.enableAutoSizing = true; nt.fontSizeMin = 11; nt.fontSizeMax = 22;
+                }
+            }
+
+            var row = UIKit.Rect("Knoepfe", left);
+            row.anchorMin = new Vector2(0f, 0f);
+            row.anchorMax = new Vector2(1f, 0f);
+            row.pivot = new Vector2(0.5f, 0f);
+            row.anchoredPosition = new Vector2(0f, 30f);
+            row.sizeDelta = new Vector2(-40f, 100f);
+            AddAction(row, 0, "Verteidigung\n<size=70%>= aktuelles Team</size>", UX.Green, () =>
+            {
+                if (D.TeamCount() == 0) { Toast("Stelle zuerst ein Team auf."); return; }
+                Online.SetDefense(D.BuildTeam(), () => { Toast("Verteidigungsteam gespeichert."); Show(MenuPage.Arena); }, e => Toast(e));
+            });
+            AddAction(row, 1, currentMatch == null ? "Gegner suchen" : "Anderer Gegner", UX.Blue, () =>
+                Online.FindMatch(m => { currentMatch = m; Show(MenuPage.Arena); }, e => Toast(e)));
+            AddAction(row, 2, "Angreifen!", new Color(0.85f, 0.3f, 0.15f), () =>
+            {
+                if (currentMatch == null) { Toast("Suche zuerst einen Gegner."); return; }
+                if (D.TeamCount() == 0) { Toast("Stelle zuerst ein Team auf."); return; }
+                var m = currentMatch;
+                currentMatch = null;
+                Online.Fight(m.matchId, D.BuildTeam(), f =>
+                {
+                    Game.PendingArena = new ArenaFight
+                    {
+                        enemy = Online.ToTeam(f.gegnerUnits), seed = f.seed, opponent = m.gegner,
+                        serverWinner = f.sieger, delta = f.aenderung, rating = f.wertung, rank = f.rang
+                    };
+                    GameFlow.ToBattle();
+                }, e => { Toast(e); Show(MenuPage.Arena); });
+            });
+
+            BuildBoard();
+        }
+
+        void BuildBoard()
+        {
+            var right = P ? Area(0.03f, 0.02f, 0.97f, 0.45f) : Area(0.58f, 0.03f, 0.98f, 0.89f);
+            var rbg = UX.Panel(right, "Rangliste", UX.PanelDark);
+            UIKit.Stretch(rbg.rectTransform);
+            var h = UIKit.Text(right, "Titel", "Rangliste", 38f, UX.Gold, TextAlignmentOptions.Top, true);
+            h.rectTransform.anchorMin = new Vector2(0f, 1f);
+            h.rectTransform.anchorMax = new Vector2(1f, 1f);
+            h.rectTransform.pivot = new Vector2(0.5f, 1f);
+            h.rectTransform.anchoredPosition = new Vector2(0f, -14f);
+            h.rectTransform.sizeDelta = new Vector2(0f, 50f);
+            var list = UIKit.Text(right, "Liste", "Lade …", 26f, Color.white, TextAlignmentOptions.TopLeft);
+            UIKit.Stretch(list.rectTransform, 30, 20, 30, 74);
+            list.enableAutoSizing = true; list.fontSizeMin = 12; list.fontSizeMax = 26;
+            Online.Leaderboard(entries =>
+            {
+                if (list == null) return;
+                board = entries;
+                if (entries.Count == 0) { list.text = "Noch niemand in der Rangliste – sei der Erste!"; return; }
+                var sb = new System.Text.StringBuilder();
+                foreach (var e in entries)
+                {
+                    if (e.platz > 15) break;
+                    sb.Append($"<b>{e.platz}.</b> {e.name}  <color={Look.Hex(RankColor(e.rang))}>{e.rang}</color>  <color=#aab>{e.wertung}</color>\n");
+                }
+                list.text = sb.ToString();
+            }, e => { if (list != null) list.text = $"<color=#ff8a6b>{e}</color>"; });
+        }
+
         // ---------------- Einstellungen ----------------
 
         void BuildSettings()
@@ -1087,19 +1251,37 @@ namespace Kesselwerk
             Slider(area, 1, "Effekte", Sound.SfxVolume, v => { Sound.SfxVolume = v; Game.Save(); });
 
             var spd = Btn(area, $"Kampftempo: {D.battleSpeed}x", UX.Blue, () => { D.battleSpeed = D.battleSpeed >= 3 ? 1 : D.battleSpeed + 1; Game.Save(); Show(MenuPage.Settings); }, 32f);
-            UIKit.Place((RectTransform)spd.transform, new Vector2(0.5f, 1f), new Vector2(0f, -430f), new Vector2(520f, 90f));
+            UIKit.Place((RectTransform)spd.transform, new Vector2(0.5f, 1f), new Vector2(0f, -385f), new Vector2(520f, 84f));
 
             int owned = D.creatures.Count;
             var prof = UIKit.Text(area, "Profil",
                 $"<b>Profil: {D.playerName}</b>\nKämpfe {D.battles}  ·  Siege {D.wins}  ·  Beschwörungen {D.summons}  ·  Kreaturen {owned}\n" +
                 $"Kampagne: {Campaign.RegionNames[0]} {D.regionProgress[0]}/{Campaign.StagesPerRegion}, {Campaign.RegionNames[1]} {D.regionProgress[1]}/{Campaign.StagesPerRegion}",
                 28f, Color.white, TextAlignmentOptions.Center);
-            UIKit.Place(prof.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 420f), new Vector2(900f, 180f));
+            UIKit.Place(prof.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -600f), new Vector2(900f, 130f));
+            prof.enableAutoSizing = true; prof.fontSizeMin = 14; prof.fontSizeMax = 28;
 
             var credits = UIKit.Text(area, "Credits",
-                "<size=80%>3D-Modelle: Quaternius (CC0) · Klänge und Musik: im Spiel erzeugt (Platzhalter)\nOnline-Funktionen: noch nicht verbunden (Server folgt)</size>",
+                "<size=80%>3D-Modelle: Quaternius (CC0) · Klänge und Musik: im Spiel erzeugt (Platzhalter)\nServer: " + Online.BaseUrl + "</size>",
                 26f, new Color(1f, 1f, 1f, 0.6f), TextAlignmentOptions.Center);
-            UIKit.Place(credits.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 240f), new Vector2(900f, 120f));
+            UIKit.Place(credits.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 168f), new Vector2(900f, 76f));
+
+            var up = Btn(area, "In Cloud sichern", UX.Blue, () =>
+            {
+                if (!Online.HasAccount) { Toast("Zuerst in der Arena ein Online-Konto anlegen."); return; }
+                Online.UploadSave(() => Toast("Spielstand in der Cloud gesichert."), e => Toast(e));
+            }, 28f);
+            UIKit.Place((RectTransform)up.transform, new Vector2(0.5f, 1f), new Vector2(-230f, -490f), new Vector2(420f, 84f));
+            var down = Btn(area, "Aus Cloud laden", new Color(0.3f, 0.4f, 0.6f), () =>
+            {
+                if (!Online.HasAccount) { Toast("Zuerst in der Arena ein Online-Konto anlegen."); return; }
+                Online.DownloadSave(json =>
+                {
+                    if (Game.Import(json)) { Toast("Cloud-Spielstand geladen."); mm.SpawnPals(); Show(MenuPage.Settings); }
+                    else Toast("Cloud-Spielstand ist ungültig.");
+                }, e => Toast(e));
+            }, 28f);
+            UIKit.Place((RectTransform)down.transform, new Vector2(0.5f, 1f), new Vector2(230f, -490f), new Vector2(420f, 84f));
 
             var reset = Btn(area, "Spielstand zurücksetzen", UX.Red, () =>
             {
@@ -1109,7 +1291,7 @@ namespace Kesselwerk
                 var yes = Btn(panel, "Ja, zurücksetzen", UX.Red, () => { Game.Reset(); overlay.gameObject.SetActive(false); mm.SpawnPals(); Show(MenuPage.Home); Toast("Neuer Spielstand angelegt."); }, 32f);
                 UIKit.Place((RectTransform)yes.transform, new Vector2(0.5f, 0f), new Vector2(0f, 150f), new Vector2(460f, 100f));
             }, 30f);
-            UIKit.Place((RectTransform)reset.transform, new Vector2(0.5f, 0f), new Vector2(0f, 100f), new Vector2(520f, 90f));
+            UIKit.Place((RectTransform)reset.transform, new Vector2(0.5f, 0f), new Vector2(0f, 70f), new Vector2(520f, 84f));
         }
 
         void Slider(RectTransform parent, int i, string label, float value, System.Action<float> onChange)

@@ -18,6 +18,9 @@ namespace Kesselwerk
         Camera cam;
         BattleHud hud;
         StageDef stage;
+        ArenaFight arena;
+        TeamSpec enemyTeam;
+        string title;
         BattleResult result;
         TeamSpec playerTeam;
         readonly Dictionary<int, Creature> views = new Dictionary<int, Creature>();
@@ -45,12 +48,30 @@ namespace Kesselwerk
             cam = ArenaBuilder.SetupCameraAndLight();
             ArenaBuilder.BuildArena(true);
 
-            stage = Game.PendingStage ?? Campaign.Get(0, 0);
-            ArenaBuilder.ApplyRegionMood(stage.region);
+            arena = Game.PendingArena;
+            Game.PendingArena = null;
             playerTeam = Game.Data.BuildTeam();
-            int seed = Random.Range(1, int.MaxValue);
-            result = BattleSim.Run(playerTeam, stage.enemy, seed);
-            Debug.Log($"Kesselwerk: Kampf {stage.name} berechnet – Startwert {seed}, {result.events.Count} Ereignisse, Sieger {(result.winner == 0 ? "Spieler" : "Gegner")}");
+            int seed;
+            if (arena != null)
+            {
+                // Arena: Gegner und Startwert kommen vom Server, der den Kampf schon berechnet hat
+                stage = new StageDef { region = 0, index = 0, name = "Arena" };
+                enemyTeam = arena.enemy;
+                seed = arena.seed;
+                title = $"Arena  ·  gegen {arena.opponent}";
+            }
+            else
+            {
+                stage = Game.PendingStage ?? Campaign.Get(0, 0);
+                enemyTeam = stage.enemy;
+                seed = Random.Range(1, int.MaxValue);
+                title = $"{Campaign.RegionNames[stage.region]}  ·  {stage.name}";
+            }
+            ArenaBuilder.ApplyRegionMood(stage.region);
+            result = BattleSim.Run(playerTeam, enemyTeam, seed);
+            Debug.Log($"Kesselwerk: Kampf {title} berechnet – Startwert {seed}, {result.events.Count} Ereignisse, Sieger {(result.winner == 0 ? "Spieler" : "Gegner")}");
+            if (arena != null && arena.serverWinner != result.winner)
+                Debug.LogWarning("Kesselwerk: Arena-Ergebnis weicht vom Server ab – es zählt das Server-Ergebnis.");
 
             int n = result.units.Count;
             hp = new float[n]; maxHp = new float[n]; shield = new float[n]; energy = new float[n];
@@ -62,7 +83,7 @@ namespace Kesselwerk
             }
 
             hud = gameObject.AddComponent<BattleHud>();
-            hud.Init(this, cam, stage);
+            hud.Init(this, cam, title);
 
             foreach (var u in result.units)
             {
@@ -109,7 +130,7 @@ namespace Kesselwerk
                 delay += 0.08f;
             }
             Sound.Play("beschwoerung", 0.6f);
-            hud.Banner($"{Campaign.RegionNames[stage.region]} {stage.name}", 1.0f);
+            hud.Banner(title, 1.0f);
             for (float t = 0f; t < 1f; t += Time.deltaTime / 1.4f)
             {
                 introYaw = Mathf.Lerp(35f, 0f, Mathf.SmoothStep(0f, 1f, t));
@@ -131,7 +152,7 @@ namespace Kesselwerk
                 Zoom(Vector3.zero, 0f);
             }
 
-            hud.ShowSynergies(Synergies.For(playerTeam), Synergies.For(stage.enemy));
+            hud.ShowSynergies(Synergies.For(playerTeam), Synergies.For(enemyTeam));
             hud.Banner("KAMPF!", 0.6f);
             yield return new WaitForSeconds(0.9f);
 
@@ -489,10 +510,25 @@ namespace Kesselwerk
                 foreach (var u in result.units)
                     if (u.team == 0 && u.Alive) Fx.Burst(views[u.uid].Top, new Color(3f, 2.4f, 0.8f), 30, 4f, 0.2f, 1f, 1f);
 
-            var rw = BattleRewards.Apply(Game.Data, stage, result);
-            Game.Save();
-            yield return new WaitForSeconds(1.8f);
-            hud.ShowResult(won, rw, result, () => GameFlow.ToMenu(MenuPage.Campaign), () => GameFlow.ToBattle());
+            if (arena != null)
+            {
+                // Arena: Wertung kommt vom Server, dazu etwas Gold
+                bool serverWon = arena.serverWinner == 0;
+                var rw = new Rewards { gold = serverWon ? 60 : 15 };
+                Game.Data.gold += rw.gold;
+                Game.Save();
+                string sign = arena.delta >= 0 ? "+" : "";
+                string extra = $"<color=#9fd3ff>Arena-Wertung {sign}{arena.delta} → {arena.rating} ({arena.rank})</color>";
+                yield return new WaitForSeconds(1.8f);
+                hud.ShowResult(serverWon, rw, result, () => GameFlow.ToMenu(MenuPage.Arena), () => GameFlow.ToMenu(MenuPage.Arena), extra);
+            }
+            else
+            {
+                var rw = BattleRewards.Apply(Game.Data, stage, result);
+                Game.Save();
+                yield return new WaitForSeconds(1.8f);
+                hud.ShowResult(won, rw, result, () => GameFlow.ToMenu(MenuPage.Campaign), () => GameFlow.ToBattle());
+            }
         }
 
         // ------------------------------------------------------------------

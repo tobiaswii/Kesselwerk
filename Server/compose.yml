@@ -1,0 +1,19 @@
+# Stack auf VM 100: /opt/stacks/kesselwerk (Repo-Checkout unter ./src)
+services:
+  kesselwerk-server:
+    build:
+      context: ./src
+      dockerfile: Server/Dockerfile
+    image: kesselwerk-server:local
+    pull_policy: never
+    container_name: kesselwerk-server
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+    networks: [proxy]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+networks:
+  proxy:
+    external: true

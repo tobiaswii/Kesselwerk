@@ -8,6 +8,15 @@ namespace Kesselwerk
     /// Zentraler Spielzustand: lädt und speichert den Spielstand lokal (JSON in PlayerPrefs mit Sicherungskopie).
     /// Später ersetzt bzw. ergänzt ein Server-Backend diese lokale Speicherung (siehe Online/IBackend).
     /// </summary>
+    public class ArenaFight
+    {
+        public TeamSpec enemy;
+        public int seed;
+        public string opponent;
+        public int serverWinner, delta, rating;
+        public string rank;
+    }
+
     public static class Game
     {
         const string Key = "kesselwerk_spielstand_v2";
@@ -26,6 +35,9 @@ namespace Kesselwerk
 
         /// <summary>Stufe, die als Nächstes gekämpft wird.</summary>
         public static StageDef PendingStage;
+
+        /// <summary>Arena-Kampf, den der Server bereits berechnet hat (null = Kampagne).</summary>
+        public static ArenaFight PendingArena;
 
         public static int Today => (int)(DateTime.UtcNow.Date - new DateTime(2026, 1, 1)).TotalDays;
 
@@ -80,5 +92,16 @@ namespace Kesselwerk
         }
 
         public static string Export() => JsonUtility.ToJson(Data);
+
+        /// <summary>Übernimmt einen Spielstand (z. B. aus der Cloud). false = ungültig.</summary>
+        public static bool Import(string json)
+        {
+            var p = TryParse(json);
+            if (p == null) return false;
+            p.Normalize();
+            data = p;
+            Save();
+            return true;
+        }
     }
 }
