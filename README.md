@@ -26,8 +26,7 @@ Ein Sammelkartenspiel für iPhone und iPad, in dem eigene Kreaturen in animierte
 
 1. [Unity Hub](https://unity.com/download) installieren
 2. Unity 6 LTS mit den Modulen **Web Build Support** und **iOS Build Support** installieren
-3. [Git LFS](https://git-lfs.com) installieren (für 3D-Modelle, Texturen, Sounds)
-4. Repository klonen und den Ordner im Unity Hub über „Add project from disk“ öffnen
+3. Repository klonen (z. B. mit [GitHub Desktop](https://desktop.github.com)) und den Ordner im Unity Hub über „Add project from disk“ öffnen
 
 ## Lizenzen
 
