@@ -1,0 +1,39 @@
+# Drehbuch Demo-Video Kesselwerk v2 (Sekunden|Befehl)
+1|game caption off
+1|game menu Home
+1|game speed 1
+0.5|game rec start demo 15
+4.5|game caption Kesselwerk – ein 3D-Monster-Auto-Battler für iPhone und iPad
+0.2|game caption Beschwören: 28 Kreaturen in 10 Elementen – mit Garantie auf Selten und Legendär
+0.5|game menu Summon
+0.3|game crystals 3000
+8|game summon 10
+0.3|game caption Sammlung: Fusion, Entwicklung und drei Ausrüstungsplätze je Kreatur
+3|game menu Collection
+3.5|game detail biene
+4|game gearpick biene 0
+0.3|game caption Team aus sechs Kreaturen – vordere und hintere Reihe, Element-Synergien
+4.5|game menu Team
+0.3|game caption Kampagne: vier Regionen mit 32 Stufen und Bossen
+4|game menu Campaign
+1.2|game battle 0 3
+7|game caption Vollautomatische 3D-Kämpfe – Spezialangriffe mit Zeitlupe und Effekten
+7|game caption Elementvorteile, Schilde und Heilung entscheiden über Sieg oder Niederlage
+1|game skip
+4.5|game caption Nach jedem Kampf: Belohnungen, Ausrüstungsbeute und Statistik mit MVP
+1.2|game battle 3 7
+0.3|game speed 2
+7|game caption Jede Region hat ihre eigene Stimmung – hier der Boss des Schattenreichs
+0.5|game skip
+2.5|game caption Bosse sind echte Hürden: stärker werden mit Fusion, Entwicklung und Ausrüstung
+0.5|game speed 1
+0.3|game menu Arena
+3.5|game caption Arena: online gegen echte Spieler – der Server berechnet jeden Kampf
+1|game arena find
+3.5|game arena attack
+1.2|game caption Arena: online gegen echte Spieler – der Server berechnet jeden Kampf
+8|game caption Wertung und Rang von Bronze bis Legende – fälschungssicher auf dem eigenen Server
+1|game skip
+5|game caption Kesselwerk · Unity 6 · eigener Server auf dem Homeserver
+4|game caption off
+0.5|game rec stop

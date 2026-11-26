@@ -102,6 +102,15 @@ namespace Kesselwerk
                     if (p.Length > 1 && p[1] == "up") Online.UploadSave(() => Debug.Log("[Cloud] hochgeladen"), e => Debug.Log("[Cloud] Fehler " + e));
                     else Online.DownloadSave(j => Debug.Log("[Cloud] geladen " + j.Length + " Zeichen"), e => Debug.Log("[Cloud] Fehler " + e));
                     return "ok";
+                case "rec":
+                {
+                    // rec start NAME FPS | rec stop – Video im Ordner ClaudeBridge des Projekts
+                    if (p.Length > 1 && p[1] == "stop") return FrameRecorder.Stop();
+                    string name = p.Length > 2 ? p[2] : "demo";
+                    float fps = p.Length > 3 ? float.Parse(p[3], System.Globalization.CultureInfo.InvariantCulture) : 15f;
+                    string dir = System.IO.Path.Combine(System.IO.Directory.GetParent(Application.dataPath).FullName, "ClaudeBridge");
+                    return FrameRecorder.Start(System.IO.Path.Combine(dir, name + ".mjpeg"), fps, 1280, 720);
+                }
                 case "timescale":
                     Time.timeScale = float.Parse(p[1], System.Globalization.CultureInfo.InvariantCulture);
                     return "ok";

@@ -61,8 +61,21 @@ namespace Kesselwerk.EditorTools
         static int recFrame;
         static double recInterval, recNext;
 
+        // Drehbuch: Zeilen "Sekunden|Befehl" – nach dem Befehl wird so lange gewartet
+        static readonly Queue<(double wait, string cmd)> script = new Queue<(double, string)>();
+        static double scriptNext;
+
         static void Poll()
         {
+            if (script.Count > 0 && EditorApplication.timeSinceStartup >= scriptNext)
+            {
+                var (wait, c) = script.Dequeue();
+                string r;
+                try { r = Execute(c); } catch (Exception e) { r = "Fehler: " + e.Message; }
+                File.AppendAllText(LogFile, $"[{DateTime.Now:HH:mm:ss}] Drehbuch: {c} -> {r}\n");
+                scriptNext = EditorApplication.timeSinceStartup + wait;
+                if (script.Count == 0) Write(OutFile, "Drehbuch fertig");
+            }
             if (recDir != null && EditorApplication.isPlaying && EditorApplication.timeSinceStartup >= recNext)
             {
                 recNext = EditorApplication.timeSinceStartup + recInterval;
@@ -134,6 +147,21 @@ namespace Kesselwerk.EditorTools
                     recInterval = 1.0 / (a.Length > 2 ? double.Parse(a[2], System.Globalization.CultureInfo.InvariantCulture) : 8.0);
                     recNext = 0;
                     return "Aufnahme läuft: " + recDir;
+                }
+                case "script":
+                {
+                    string file = Path.Combine(Dir, arg);
+                    if (!File.Exists(file)) return "Drehbuch fehlt: " + file;
+                    script.Clear();
+                    foreach (var raw in File.ReadAllLines(file))
+                    {
+                        var line = raw.Trim();
+                        if (line.Length == 0 || line.StartsWith("#")) continue;
+                        var i = line.IndexOf('|');
+                        script.Enqueue((double.Parse(line.Substring(0, i), System.Globalization.CultureInfo.InvariantCulture), line.Substring(i + 1).Trim()));
+                    }
+                    scriptNext = 0;
+                    return $"Drehbuch gestartet: {script.Count} Schritte";
                 }
                 case "tests":
                     RunTests();
