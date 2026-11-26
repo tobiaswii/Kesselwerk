@@ -397,3 +397,84 @@ namespace Kesselwerk.Tests
         }
     }
 }
+
+namespace Kesselwerk.Tests
+{
+    [TestFixture]
+    public class GearTests
+    {
+        [Test]
+        public void AusruestungErhoehtWerte()
+        {
+            var d = CreatureDb.Get("krebs");
+            var ohne = new UnitSpec("krebs", 10, 0);
+            var mit = new UnitSpec("krebs", 10, 0) { weapon = "w_drache", armor = "r_titan", armorLv = 5 };
+            Assert.Greater(Stats.Atk(d, mit), Stats.Atk(d, ohne));
+            Assert.Greater(Stats.Hp(d, mit), Stats.Hp(d, ohne));
+            Assert.Greater(Stats.Power(d, mit), Stats.Power(d, ohne));
+        }
+
+        [Test]
+        public void AnlegenNimmtEsDemAnderenAb()
+        {
+            var p = PlayerData.NewGame();
+            var w = p.gear.Find(g => g.Def.slot == GearSlot.Waffe);
+            var krebs = p.Get("krebs");
+            var moos = p.Get("moos");
+            Assert.IsTrue(Progress.Equip(p, krebs, w.uid, out _));
+            Assert.IsTrue(Progress.Equip(p, moos, w.uid, out _));
+            Assert.AreEqual(0, krebs.weaponUid);
+            Assert.AreEqual(w.uid, moos.weaponUid);
+            Assert.AreEqual("w_knueppel", p.BuildTeam().units.Find(u => u.id == "moos").weapon);
+        }
+
+        [Test]
+        public void FalscheAusruestungWirdAbgelehnt()
+        {
+            var t = new TeamSpec().Add(new UnitSpec("krebs", 1, 0) { weapon = "r_titan" });
+            Assert.IsFalse(t.IsValid(out _));
+            var t2 = new TeamSpec().Add(new UnitSpec("krebs", 1, 0) { weapon = "w_drache", weaponLv = 9 });
+            Assert.IsFalse(t2.IsValid(out _));
+            var t3 = new TeamSpec().Add(new UnitSpec("krebs", 25, 0));
+            Assert.IsFalse(t3.IsValid(out _), "Stufe 25 mit 1 Stern");
+        }
+
+        [Test]
+        public void EliteGibtBeimErstenSiegAusruestung()
+        {
+            var p = PlayerData.NewGame();
+            int before = p.gear.Count;
+            p.regionProgress[0] = 3;
+            var rw = BattleRewards.Apply(p, Campaign.Get(0, 3), new BattleResult { winner = 0, seed = 5 });
+            Assert.AreEqual(1, rw.gear.Count);
+            Assert.AreEqual(before + 1, p.gear.Count);
+        }
+
+        [Test]
+        public void AufwertenKostetGold()
+        {
+            var p = PlayerData.NewGame();
+            var g = p.gear[0];
+            int gold = p.gold;
+            Assert.IsTrue(Progress.UpgradeGear(p, g, out _));
+            Assert.AreEqual(2, g.level);
+            Assert.Less(p.gold, gold);
+        }
+
+        [Test]
+        public void BossWirdRasend()
+        {
+            var player = new TeamSpec().Add(new UnitSpec("donner", 40, 3, 4)).Add(new UnitSpec("zapf", 40, 4, 4)).Add(new UnitSpec("yeti", 40, 1, 4));
+            var r = BattleSim.Run(player, Campaign.Get(0, 7).enemy, 3);
+            Assert.IsTrue(r.events.Exists(e => e.type == EvType.Buff && e.text == "Raserei"));
+        }
+
+        [Test]
+        public void VierRegionenMitBoss()
+        {
+            Assert.AreEqual(4, Campaign.RegionCount);
+            for (int r = 0; r < Campaign.RegionCount; r++)
+                Assert.IsTrue(Campaign.Get(r, Campaign.StagesPerRegion - 1).enemy.units.Exists(u => CreatureDb.Get(u.id).isBoss));
+        }
+    }
+}

@@ -16,6 +16,9 @@ namespace Kesselwerk.Core
         public int stars = 1;
         public int stage = 0;
         public int slot;
+        // Ausrüstung (leer = nichts angelegt)
+        public string weapon, armor, amulet;
+        public int weaponLv = 1, armorLv = 1, amuletLv = 1;
 
         public UnitSpec() { }
         public UnitSpec(string id, int level, int slot, int stars = 1, int stage = 0)
@@ -32,6 +35,13 @@ namespace Kesselwerk.Core
 
         public TeamSpec Add(UnitSpec u) { units.Add(u); return this; }
 
+        static bool GearOk(string id, int level, GearSlot slot)
+        {
+            if (string.IsNullOrEmpty(id)) return true;
+            var g = GearDb.Get(id);
+            return g != null && g.slot == slot && level >= 1 && level <= GearDb.MaxLevel;
+        }
+
         public bool IsValid(out string error)
         {
             error = null;
@@ -43,6 +53,9 @@ namespace Kesselwerk.Core
                 if (CreatureDb.Get(u.id) == null) { error = "Unbekannte Kreatur: " + u.id; return false; }
                 if (u.slot < 0 || u.slot >= Slots || !used.Add(u.slot)) { error = "Ungültiges Feld."; return false; }
                 if (u.level < 1 || u.level > Stats.MaxLevelCap || u.stars < 1 || u.stars > Stats.MaxStars) { error = "Ungültige Stufe."; return false; }
+                if (u.level > Stats.MaxLevel(u.stars)) { error = "Stufe über der Sterngrenze."; return false; }
+                if (!GearOk(u.weapon, u.weaponLv, GearSlot.Waffe) || !GearOk(u.armor, u.armorLv, GearSlot.Ruestung) || !GearOk(u.amulet, u.amuletLv, GearSlot.Amulett))
+                { error = "Ungültige Ausrüstung."; return false; }
             }
             return true;
         }
@@ -64,14 +77,16 @@ namespace Kesselwerk.Core
 
         static float Mul(UnitSpec u) => LevelMul(u.level) * StarMul(u.stars) * StageMul(u.stage);
 
-        public static int Hp(CreatureDef d, UnitSpec u) => MathK.RoundToInt(d.hp * Mul(u));
-        public static int Atk(CreatureDef d, UnitSpec u) => MathK.RoundToInt(d.atk * Mul(u));
-        public static int Def(CreatureDef d, UnitSpec u) => MathK.RoundToInt(d.def * (1f + 0.04f * (u.level - 1)) * StageMul(u.stage));
-        public static int Spd(CreatureDef d, UnitSpec u) => d.spd + u.stage * 6 + (u.stars - 1) * 3;
+        // Werte inklusive Ausrüstung
+        public static int Hp(CreatureDef d, UnitSpec u) => MathK.RoundToInt(d.hp * Mul(u) * (1f + GearDb.Sum(u).hpPct));
+        public static int Atk(CreatureDef d, UnitSpec u) => MathK.RoundToInt(d.atk * Mul(u) * (1f + GearDb.Sum(u).atkPct));
+        public static int Def(CreatureDef d, UnitSpec u) => MathK.RoundToInt(d.def * (1f + 0.04f * (u.level - 1)) * StageMul(u.stage) * (1f + GearDb.Sum(u).defPct));
+        public static int Spd(CreatureDef d, UnitSpec u) => d.spd + u.stage * 6 + (u.stars - 1) * 3 + MathK.RoundToInt(GearDb.Sum(u).spd);
+        public static float Crit(CreatureDef d, UnitSpec u) => d.crit + GearDb.Sum(u).crit;
 
         /// <summary>Grobe Kampfkraft zur Anzeige und für Gegnerwahl.</summary>
         public static int Power(CreatureDef d, UnitSpec u) =>
-            MathK.RoundToInt((Hp(d, u) * 0.25f + Atk(d, u) * 2.2f + Def(d, u) * 2f) * (1f + d.crit) * (Spd(d, u) / 100f));
+            MathK.RoundToInt((Hp(d, u) * 0.25f + Atk(d, u) * 2.2f + Def(d, u) * 2f) * (1f + Crit(d, u)) * (Spd(d, u) / 100f) * (1f + GearDb.Sum(u).energy / 200f));
     }
 
     // =====================================================================
@@ -170,6 +185,7 @@ namespace Kesselwerk.Core
 
         public int damageDealt, healingDone, damageTaken;
         public bool dead;
+        public bool enraged;
 
         public bool Alive => hp > 0f;
         public bool Front => slot < 3;
@@ -303,7 +319,8 @@ namespace Kesselwerk.Core
                 u.atk = Stats.Atk(d, spec) * (1f + atkB + allB);
                 u.defense = Stats.Def(d, spec) * (1f + defB + allB);
                 u.spd = Stats.Spd(d, spec) * (1f + spdB + allB);
-                u.crit = d.crit + critB;
+                u.crit = Stats.Crit(d, spec) + critB;
+                u.energy = GearDb.Sum(spec).energy;
                 u.regen = regenB;
                 u.lifesteal = lsB;
                 u.energyMul = 1f + energyB;
@@ -646,6 +663,14 @@ namespace Kesselwerk.Core
             }
 
             if (!t.Alive) Die(t);
+            else if (t.def.isBoss && !t.enraged && t.HpPct < 0.5f)
+            {
+                // Bossphase: Raserei unter 50 % Leben
+                t.enraged = true;
+                t.atk *= 1.4f;
+                t.spd *= 1.2f;
+                events.Add(new BattleEvent { type = EvType.Buff, actor = t.uid, target = t.uid, value = 40, elem = 1f, text = "Raserei" });
+            }
             return true;
         }
 

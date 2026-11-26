@@ -46,6 +46,7 @@ namespace Kesselwerk
             ArenaBuilder.BuildArena(true);
 
             stage = Game.PendingStage ?? Campaign.Get(0, 0);
+            ArenaBuilder.ApplyRegionMood(stage.region);
             playerTeam = Game.Data.BuildTeam();
             int seed = Random.Range(1, int.MaxValue);
             result = BattleSim.Run(playerTeam, stage.enemy, seed);
@@ -339,8 +340,12 @@ namespace Kesselwerk
             if (e.skill == SkillKind.Taunt) Fx.Ring(a.transform.position + Vector3.up * 0.1f, new Color(3f, 0.6f, 0.4f));
             if (offensive)
             {
-                Shake(e.skill == SkillKind.AllEnemies ? 0.35f : 0.2f, def.rarity >= Rarity.Legendaer ? 0.3f : 0.18f);
+                bool big = e.skill == SkillKind.AllEnemies || def.rarity >= Rarity.Episch || def.isBoss;
+                Shake(big ? 0.4f : 0.2f, def.rarity >= Rarity.Legendaer || def.isBoss ? 0.32f : 0.18f);
                 Sound.Play("krit", 0.8f, 0.8f);
+                Color fc = c; fc.a = big ? 0.45f : 0.25f;
+                hud.Flash(fc);
+                if (!skipping) StartCoroutine(SlowMo(big ? 0.35f : 0.18f));
             }
             else Sound.Play(e.skill == SkillKind.ShieldAll || e.skill == SkillKind.Taunt ? "schild" : "heilung");
         }
@@ -401,6 +406,19 @@ namespace Kesselwerk
                     if (show) hud.Float(views[e.target].Top, "Schild", new Color(0.7f, 0.9f, 1f), 30f);
                     break;
                 case EvType.Buff:
+                    if (e.text == "Raserei")
+                    {
+                        if (!show) break;
+                        var boss = views[e.target];
+                        hud.Banner($"<color=#ff5a3c>RASEREI!</color>  {boss.def.StageName(boss.stage)} wird stärker", 1.1f);
+                        hud.Flash(new Color(1f, 0.15f, 0.1f, 0.45f));
+                        Fx.Ring(boss.transform.position + Vector3.up * 0.1f, new Color(3f, 0.4f, 0.2f));
+                        Fx.Pillar(boss.transform.position, new Color(3f, 0.5f, 0.2f), boss.Height * 1.5f, 90);
+                        Shake(0.6f, 0.3f);
+                        Sound.Voice(boss.def, 1f);
+                        boss.Glow(new Color(1f, 0.2f, 0.1f));
+                        break;
+                    }
                     if (show) hud.Float(views[e.target].Top, "Angriff +", new Color(1f, 0.6f, 0.3f), 30f);
                     break;
                 case EvType.Debuff:
@@ -428,6 +446,14 @@ namespace Kesselwerk
                     if (show) Sound.Play("tod", 0.8f);
                     break;
             }
+        }
+
+        /// <summary>Kurze Zeitlupe beim Einschlag einer Spezialfähigkeit.</summary>
+        IEnumerator SlowMo(float realSeconds)
+        {
+            Time.timeScale = Speed * 0.25f;
+            yield return new WaitForSecondsRealtime(realSeconds);
+            if (!finished) Time.timeScale = Speed;
         }
 
         void AddEnergy(int uid, float amount)

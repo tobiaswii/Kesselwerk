@@ -16,10 +16,20 @@ namespace Kesselwerk.Core
         public int stars = 1;
         public int stage;
         public int copies;   // überzählige Exemplare für die Fusion
+        public int weaponUid, armorUid, amuletUid; // angelegte Ausrüstung (0 = nichts)
 
         public CreatureDef Def => CreatureDb.Get(id);
         public UnitSpec ToSpec(int slot) => new UnitSpec(id, level, slot, stars, stage);
         public string Name => Def != null ? Def.StageName(stage) : id;
+    }
+
+    [Serializable]
+    public class OwnedGear
+    {
+        public int uid;
+        public string id;
+        public int level = 1;
+        public GearDef Def => GearDb.Get(id);
     }
 
     [Serializable]
@@ -32,6 +42,8 @@ namespace Kesselwerk.Core
         public int potions;      // Erfahrungstränke (je 100 EP)
         public int evoStones;    // Entwicklungssteine
         public List<OwnedCreature> creatures = new List<OwnedCreature>();
+        public List<OwnedGear> gear = new List<OwnedGear>();
+        public int nextGearUid = 1;
         public string[] team = new string[TeamSpec.Slots];
         public int[] regionProgress = new int[Campaign.RegionCount]; // Anzahl geschaffter Stufen je Region
         public int battles, wins, summons;
@@ -56,9 +68,41 @@ namespace Kesselwerk.Core
             for (int i = 0; i < team.Length; i++)
             {
                 var c = Get(team[i]);
-                if (c != null) t.Add(c.ToSpec(i));
+                if (c != null) t.Add(SpecFor(c, i));
             }
             return t;
+        }
+
+        public OwnedGear GetGear(int uid)
+        {
+            if (uid <= 0) return null;
+            foreach (var g in gear) if (g.uid == uid) return g;
+            return null;
+        }
+
+        /// <summary>Werte einer Kreatur inklusive ihrer angelegten Ausrüstung.</summary>
+        public UnitSpec SpecFor(OwnedCreature c, int slot)
+        {
+            var s = c.ToSpec(slot);
+            var w = GetGear(c.weaponUid); if (w != null) { s.weapon = w.id; s.weaponLv = w.level; }
+            var a = GetGear(c.armorUid); if (a != null) { s.armor = a.id; s.armorLv = a.level; }
+            var m = GetGear(c.amuletUid); if (m != null) { s.amulet = m.id; s.amuletLv = m.level; }
+            return s;
+        }
+
+        /// <summary>Wer trägt diesen Gegenstand gerade? (null = niemand)</summary>
+        public OwnedCreature WearerOf(int gearUid)
+        {
+            foreach (var c in creatures)
+                if (c.weaponUid == gearUid || c.armorUid == gearUid || c.amuletUid == gearUid) return c;
+            return null;
+        }
+
+        public OwnedGear AddGear(string id)
+        {
+            var g = new OwnedGear { uid = nextGearUid++, id = id };
+            gear.Add(g);
+            return g;
         }
 
         public int TeamCount()
@@ -88,6 +132,15 @@ namespace Kesselwerk.Core
             }
             if (taskClaimed == null || taskClaimed.Length != 3) taskClaimed = new bool[3];
             creatures.RemoveAll(c => c == null || CreatureDb.Get(c.id) == null);
+            if (gear == null) gear = new List<OwnedGear>();
+            gear.RemoveAll(g => g == null || GearDb.Get(g.id) == null);
+            foreach (var g in gear) if (g.uid >= nextGearUid) nextGearUid = g.uid + 1;
+            foreach (var c in creatures)
+            {
+                if (GetGear(c.weaponUid) == null) c.weaponUid = 0;
+                if (GetGear(c.armorUid) == null) c.armorUid = 0;
+                if (GetGear(c.amuletUid) == null) c.amuletUid = 0;
+            }
             for (int i = 0; i < team.Length; i++) if (team[i] != null && Get(team[i]) == null) team[i] = null;
         }
 
@@ -97,6 +150,8 @@ namespace Kesselwerk.Core
             string[] starters = { "krebs", "moos", "biene", "knochen", "hirsch" };
             foreach (var s in starters) p.creatures.Add(new OwnedCreature { id = s });
             p.team[0] = "krebs"; p.team[1] = "moos"; p.team[3] = "biene"; p.team[4] = "knochen"; p.team[5] = "hirsch";
+            p.AddGear("w_knueppel");
+            p.AddGear("r_leder");
             return p;
         }
     }
@@ -173,6 +228,48 @@ namespace Kesselwerk.Core
             p.evoStones -= StonesForEvolve(d);
             p.gold -= GoldForEvolve(d);
             c.stage++;
+            return true;
+        }
+
+        // -------- Ausrüstung --------
+
+        /// <summary>Legt einen Gegenstand an (nimmt ihn vorher anderen Kreaturen ab).</summary>
+        public static bool Equip(PlayerData p, OwnedCreature c, int gearUid, out string error)
+        {
+            error = null;
+            var g = p.GetGear(gearUid);
+            if (g == null || g.Def == null) { error = "Gegenstand nicht gefunden."; return false; }
+            var other = p.WearerOf(gearUid);
+            if (other != null) Unequip(other, g.Def.slot);
+            switch (g.Def.slot)
+            {
+                case GearSlot.Waffe: c.weaponUid = gearUid; break;
+                case GearSlot.Ruestung: c.armorUid = gearUid; break;
+                default: c.amuletUid = gearUid; break;
+            }
+            return true;
+        }
+
+        public static void Unequip(OwnedCreature c, GearSlot slot)
+        {
+            switch (slot)
+            {
+                case GearSlot.Waffe: c.weaponUid = 0; break;
+                case GearSlot.Ruestung: c.armorUid = 0; break;
+                default: c.amuletUid = 0; break;
+            }
+        }
+
+        public static int GearUpgradeCost(OwnedGear g) => 250 * g.level * ((int)g.Def.rarity + 1);
+
+        public static bool UpgradeGear(PlayerData p, OwnedGear g, out string error)
+        {
+            error = null;
+            if (g.level >= GearDb.MaxLevel) { error = "Höchste Stufe erreicht."; return false; }
+            int cost = GearUpgradeCost(g);
+            if (p.gold < cost) { error = $"Benötigt {cost} Gold."; return false; }
+            p.gold -= cost;
+            g.level++;
             return true;
         }
 
@@ -299,22 +396,26 @@ namespace Kesselwerk.Core
 
     public static class Campaign
     {
-        public const int RegionCount = 2;
+        public const int RegionCount = 4;
         public const int StagesPerRegion = 8;
 
-        public static readonly string[] RegionNames = { "Grüne Ebenen", "Vulkanregion" };
+        public static readonly string[] RegionNames = { "Grüne Ebenen", "Vulkanregion", "Eisgebirge", "Schattenreich" };
         public static readonly string[] RegionText =
         {
             "Sanfte Hügel, Bäche und alte Bäume. Hier beginnt jede Reise.",
             "Glühende Felsen, Rauch und Lava. Nur starke Teams kommen durch.",
+            "Klirrende Kälte und Gletscher. Feuer hilft – Natur leidet.",
+            "Ewige Dämmerung. Licht ist hier die stärkste Waffe.",
         };
 
         static readonly string[][] pools =
         {
             new[] { "krebs", "moos", "biene", "hirsch", "frostgeist", "pieksi", "knochen", "glotz", "pilz", "schwein", "kueken", "pinguin" },
             new[] { "glut", "pieksi", "knochen", "gift", "panda", "zapf", "kueken", "gerippe", "fledermaus", "schleim", "yeti" },
+            new[] { "frostgeist", "pinguin", "yeti", "krebs", "schleim", "fledermaus", "glotz", "stern", "zapf", "biene" },
+            new[] { "knochen", "gift", "gerippe", "fledermaus", "glotz", "schlund", "panda", "donner", "stern", "glut" },
         };
-        static readonly string[] bosses = { "boss_hain", "boss_glut" };
+        static readonly string[] bosses = { "boss_hain", "boss_glut", "boss_frost", "boss_schatten" };
 
         public static bool IsUnlocked(PlayerData p, int region, int index)
         {
@@ -329,7 +430,7 @@ namespace Kesselwerk.Core
             s.elite = index == 3 || index == 5;
             s.name = $"{region + 1}-{index + 1}" + (s.boss ? " Boss" : s.elite ? " Elite" : "");
 
-            int level = 1 + region * 11 + index * 2 + (s.elite ? 2 : 0);
+            int level = 1 + region * 9 + index * 2 + (s.elite ? 2 : 0);
             int count = MathK.Clamp(3 + index / 2 + region, 3, 6);
             var rng = new Rng(s.Seed);
             var pool = new List<string>(pools[region]);
@@ -338,14 +439,14 @@ namespace Kesselwerk.Core
 
             if (s.boss)
             {
-                team.Add(new UnitSpec(bosses[region], level, 1, 1));
+                team.Add(new UnitSpec(bosses[region], level, 1, StarsFor(level)));
                 count = Math.Min(count, 4);
                 slotOrder = new[] { 3, 5, 4, 0, 2 };
                 for (int i = 0; i < count - 1; i++)
                 {
                     var id = pool[rng.Range(0, pool.Count)];
                     pool.Remove(id);
-                    team.Add(new UnitSpec(id, level, slotOrder[i], s.elite ? 2 : 1));
+                    team.Add(new UnitSpec(id, level, slotOrder[i], StarsFor(level)));
                 }
             }
             else
@@ -357,7 +458,7 @@ namespace Kesselwerk.Core
                     var d = CreatureDb.Get(id);
                     // Tanks nach vorne, Heiler und Fernkämpfer nach hinten
                     int slot = PickSlot(team, d);
-                    team.Add(new UnitSpec(id, level, slot, 1));
+                    team.Add(new UnitSpec(id, level, slot, StarsFor(level)));
                 }
             }
             s.enemy = team;
@@ -369,6 +470,9 @@ namespace Kesselwerk.Core
             s.stones = s.boss ? 3 : s.elite ? 1 : 0;
             return s;
         }
+
+        /// <summary>Gegner haben gerade so viele Sterne, wie ihre Stufe erfordert.</summary>
+        static int StarsFor(int level) => MathK.Clamp((level - 1) / 10, 1, Stats.MaxStars);
 
         static int PickSlot(TeamSpec team, CreatureDef d)
         {
@@ -394,6 +498,7 @@ namespace Kesselwerk.Core
     {
         public int gold, xp, crystals, potions, stones;
         public bool firstClear;
+        public List<string> gear = new List<string>();
         public List<string> levelUps = new List<string>();
     }
 
@@ -428,6 +533,19 @@ namespace Kesselwerk.Core
             {
                 r.gold = stage.gold / 5;
                 r.xp = stage.xp / 3;
+            }
+
+            if (won)
+            {
+                // Ausrüstung: Boss/Elite beim ersten Sieg sicher, sonst 30 % Chance
+                var rng = new Rng(result.seed ^ (p.battles * 7919));
+                bool sure = r.firstClear && (stage.boss || stage.elite);
+                if (sure || rng.Value() < 0.3f)
+                {
+                    var g = GearDb.RollDrop(rng, stage.region, stage.boss);
+                    p.AddGear(g.id);
+                    r.gear.Add(g.name);
+                }
             }
 
             p.gold += r.gold;

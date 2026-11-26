@@ -239,6 +239,12 @@ namespace Kesselwerk.Core
             AddBoss("boss_glut", "Vulkanherzog", "Demon", Element.Feuer, 3800, 125, 62, 92,
                 new SkillDef("Lavasturm", SkillKind.Burn, 1.6f, 3, "Lava verbrennt ein Ziel."),
                 Passive.Wut, "Herr der Vulkanregion.");
+            AddBoss("boss_frost", "Frostkönig", "Yeti", Element.Eis, 4600, 135, 75, 88,
+                new SkillDef("Eissturm", SkillKind.AllEnemies, 1.05f, 0, "Ein Eissturm fegt über alle Gegner."),
+                Passive.Startschild, "Herrscher über Gletscher und Schnee.");
+            AddBoss("boss_schatten", "Schattenfürst", "Cthulhu", Element.Schatten, 4900, 140, 68, 96,
+                new SkillDef("Dunkle Flut", SkillKind.Drain, 2.2f, 0, "Verschlingt die Lebenskraft eines Gegners."),
+                Passive.Lebensraub, "Was in der Tiefe wohnt, kennt kein Licht.");
         }
 
         static void Add(string id, string[] names, string model, Element el, Rarity r, Role role,

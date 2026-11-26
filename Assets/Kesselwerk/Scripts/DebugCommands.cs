@@ -56,6 +56,17 @@ namespace Kesselwerk
                     MenuUI.Instance?.Show(MenuPage.Collection);
                     MenuUI.Instance?.ShowDetail(CreatureDb.Get(p[1]));
                     return "ok";
+                case "gear":
+                {
+                    // gear <id> : alle Ausrüstungsteile geben (zum Testen)
+                    foreach (var g in GearDb.All) D.AddGear(g.id);
+                    Game.Save();
+                    return "ok " + D.gear.Count;
+                }
+                case "gearpick":
+                    MenuUI.Instance?.Show(MenuPage.Collection);
+                    MenuUI.Instance?.DebugGearPicker(CreatureDb.Get(p[1]), (GearSlot)int.Parse(p[2]));
+                    return "ok";
                 case "tasks":
                     MenuUI.Instance?.ShowTasks();
                     return "ok";

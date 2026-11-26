@@ -98,9 +98,36 @@ namespace Kesselwerk
             bannerGroup.alpha = 0f;
             bannerGroup.blocksRaycasts = false;
 
+            flashImg = UIKit.Img(root, "Blitz", null, new Color(1f, 1f, 1f, 0f));
+            UIKit.Stretch(flashImg.rectTransform, -200, -200, -200, -200);
+            flashImg.raycastTarget = false;
+
             overlay = UIKit.Rect("Overlay", root);
             UIKit.Stretch(overlay);
             overlay.gameObject.SetActive(false);
+        }
+
+        Image flashImg;
+        Coroutine flashCo;
+
+        /// <summary>Bildschirmblitz in einer Farbe (Alpha = Stärke).</summary>
+        public void Flash(Color c)
+        {
+            if (flashCo != null) StopCoroutine(flashCo);
+            flashCo = StartCoroutine(FlashRoutine(c));
+        }
+
+        IEnumerator FlashRoutine(Color c)
+        {
+            float a0 = c.a;
+            for (float t = 0f; t < 1f; t += Time.unscaledDeltaTime / 0.35f)
+            {
+                c.a = a0 * (1f - t) * (1f - t);
+                flashImg.color = c;
+                yield return null;
+            }
+            c.a = 0f;
+            flashImg.color = c;
         }
 
         void RefreshSpeed() => speedLabel.text = $"{AutoBattleManager.Speed}x";
@@ -320,6 +347,7 @@ namespace Kesselwerk
             if (rw.crystals > 0) sb.Append($"    <color=#d79bff>+{rw.crystals} Kristalle</color>");
             if (rw.potions > 0) sb.Append($"    <color=#7dffb0>+{rw.potions} Tränke</color>");
             if (rw.stones > 0) sb.Append($"    <color=#ffb36b>+{rw.stones} Steine</color>");
+            if (rw.gear.Count > 0) sb.Append($"\n<color=#7fe3ff>Ausrüstung gefunden: {string.Join(", ", rw.gear)}</color>");
             if (rw.firstClear) sb.Append("\n<size=80%><color=#ffd23f>Erstmals geschafft!</color></size>");
             if (rw.levelUps.Count > 0) sb.Append("\n<size=75%>Aufgestiegen: " + string.Join(", ", rw.levelUps) + "</size>");
             if (!won) sb.Append("\n<size=75%><color=#bbbbcc>Tipp: Stärke dein Team mit Tränken, Fusion oder Elementvorteilen.</color></size>");

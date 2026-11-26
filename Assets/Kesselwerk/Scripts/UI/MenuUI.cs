@@ -297,8 +297,8 @@ namespace Kesselwerk
             {
                 int rr = r;
                 bool unlocked = Campaign.IsUnlocked(D, r, 0);
-                var b = Btn(tabs, unlocked ? Campaign.RegionNames[r] : Campaign.RegionNames[r] + " (gesperrt)", r == campaignRegion ? UX.Accent : UX.Grey,
-                    () => { campaignRegion = rr; selectedStage = -1; Show(MenuPage.Campaign); }, 34f);
+                var b = Btn(tabs, unlocked ? Campaign.RegionNames[r] : Campaign.RegionNames[r] + "\n<size=65%>gesperrt</size>", r == campaignRegion ? UX.Accent : UX.Grey,
+                    () => { campaignRegion = rr; selectedStage = -1; Show(MenuPage.Campaign); }, P ? 26f : 30f);
                 b.interactable = unlocked;
                 var rt = (RectTransform)b.transform;
                 UIKit.Anchor(rt, r / (float)Campaign.RegionCount, 0f, (r + 1) / (float)Campaign.RegionCount, 1f);
@@ -746,7 +746,7 @@ namespace Kesselwerk
             UX.Frame(panel, Look.RarityColor(d.rarity), 3f);
 
             string title = oc != null ? oc.Name : (d.Name + "  <size=60%>(nicht entdeckt)</size>");
-            var spec = oc != null ? oc.ToSpec(0) : new UnitSpec(d.id, 1, 0);
+            var spec = oc != null ? D.SpecFor(oc, 0) : new UnitSpec(d.id, 1, 0);
             var sb = new System.Text.StringBuilder();
             sb.Append($"<size=130%><b>{title}</b></size>\n");
             sb.Append($"<color={Look.Hex(Look.ElementColor(d.element))}>{d.element}</color>  ·  <color={Look.Hex(Look.RarityColor(d.rarity))}>{Look.RarityName(d.rarity)}</color>  ·  {Look.RoleName(d.role)}  ·  {(d.ranged ? "Fernkampf" : "Nahkampf")}\n");
@@ -760,7 +760,7 @@ namespace Kesselwerk
             sb.Append($"<size=85%>Stark gegen: {string.Join(", ", sn)}</size>\n");
             sb.Append($"<i><size=85%><color=#c9b99a>{d.description}</color></size></i>");
             var info = UIKit.Text(panel.transform, "Text", sb.ToString(), 30f, Color.white, TextAlignmentOptions.TopLeft);
-            UIKit.Stretch(info.rectTransform, 36, 260, 36, 30);
+            UIKit.Stretch(info.rectTransform, 36, oc != null ? 340 : 140, 36, 30);
             info.enableAutoSizing = true; info.fontSizeMin = 14; info.fontSizeMax = 32;
 
             if (oc != null)
@@ -776,6 +776,28 @@ namespace Kesselwerk
                 xp.fillAmount = maxed ? 1f : oc.xp / (float)Progress.XpToNext(oc.level);
                 var xt = UIKit.Text(xr, "W", maxed ? "Höchststufe – Fusion erhöht die Grenze" : $"{oc.xp} / {Progress.XpToNext(oc.level)} EP", 18f, Color.white, TextAlignmentOptions.Center, true);
                 UIKit.Stretch(xt.rectTransform);
+
+                // Ausrüstung: drei Plätze
+                var gearRow = UIKit.Rect("Ausruestung", panel.transform);
+                gearRow.anchorMin = new Vector2(0f, 0f);
+                gearRow.anchorMax = new Vector2(1f, 0f);
+                gearRow.pivot = new Vector2(0.5f, 0f);
+                gearRow.anchoredPosition = new Vector2(0f, 258f);
+                gearRow.sizeDelta = new Vector2(-40f, 78f);
+                for (int gi = 0; gi < 3; gi++)
+                {
+                    var slot = (GearSlot)gi;
+                    int uid = slot == GearSlot.Waffe ? oc.weaponUid : slot == GearSlot.Ruestung ? oc.armorUid : oc.amuletUid;
+                    var g = D.GetGear(uid);
+                    string label = g != null
+                        ? $"<size=70%>{GearDef.SlotName(slot)}</size>\n<color={Look.Hex(Look.RarityColor(g.Def.rarity))}>{g.Def.name}</color> {Roman(g.level)}"
+                        : $"<size=70%>{GearDef.SlotName(slot)}</size>\n<color=#9aa>– leer –</color>";
+                    var gb = Btn(gearRow, label, new Color(0.18f, 0.2f, 0.28f), () => ShowGearPicker(d, slot), 26f);
+                    var grt = (RectTransform)gb.transform;
+                    UIKit.Anchor(grt, gi / 3f, 0f, (gi + 1) / 3f, 1f);
+                    grt.offsetMin = new Vector2(6f, 0f);
+                    grt.offsetMax = new Vector2(-6f, 0f);
+                }
 
                 var row = UIKit.Rect("Aktionen", panel.transform);
                 row.anchorMin = new Vector2(0f, 0f);
@@ -805,6 +827,91 @@ namespace Kesselwerk
 
             var close = Btn(panel.transform, "Schließen", UX.Grey, () => { overlay.gameObject.SetActive(false); detailDef = null; mm.HidePreview(); Show(MenuPage.Collection); }, 34f);
             UIKit.Place((RectTransform)close.transform, new Vector2(0.5f, 0f), new Vector2(0f, 50f), new Vector2(300f, 80f));
+        }
+
+        static string Roman(int n) => n <= 1 ? "" : n == 2 ? "II" : n == 3 ? "III" : n == 4 ? "IV" : "V";
+
+        public void DebugGearPicker(CreatureDef d, GearSlot slot) { ShowDetail(d); ShowGearPicker(d, slot); }
+
+        /// <summary>Auswahl eines Gegenstands für einen Ausrüstungsplatz, inkl. Aufwerten.</summary>
+        void ShowGearPicker(CreatureDef d, GearSlot slot)
+        {
+            var oc = D.Get(d.id);
+            if (oc == null) return;
+            UX.Clear(overlay);
+            overlay.gameObject.SetActive(true);
+            var dim = UIKit.Img(overlay, "Abdunkeln", null, new Color(0f, 0f, 0f, 0.7f));
+            UIKit.Stretch(dim.rectTransform);
+            dim.raycastTarget = true;
+            var panel = UX.Panel(overlay, "Ausruestung", new Color(0.07f, 0.06f, 0.1f, 0.97f));
+            UIKit.Place(panel.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, P ? new Vector2(1000f, 1500f) : new Vector2(1300f, 900f));
+            UX.Frame(panel, new Color(0.5f, 0.85f, 1f), 3f);
+            Heading(panel.transform, $"{GearDef.SlotName(slot)} für {oc.Name}", 44f).rectTransform.anchoredPosition = new Vector2(0f, -20f);
+            var info = UIKit.Text(panel.transform, "Gold", $"Gold: <color=#ffd23f>{D.gold:N0}</color>   ·   Ausrüstung findest du in der Kampagne (Elite und Boss garantiert)", 24f, new Color(1f, 1f, 1f, 0.8f), TextAlignmentOptions.Top);
+            info.rectTransform.anchorMin = new Vector2(0f, 1f);
+            info.rectTransform.anchorMax = new Vector2(1f, 1f);
+            info.rectTransform.pivot = new Vector2(0.5f, 1f);
+            info.rectTransform.anchoredPosition = new Vector2(0f, -80f);
+            info.rectTransform.sizeDelta = new Vector2(-40f, 40f);
+
+            var area = UIKit.Rect("Liste", panel.transform);
+            UIKit.Stretch(area, 30, 140, 30, 130);
+            MakeScroll(area, out var content);
+            var list = D.gear.FindAll(g => g.Def.slot == slot);
+            list.Sort((a, b) => b.Def.rarity != a.Def.rarity ? b.Def.rarity.CompareTo(a.Def.rarity) : b.level.CompareTo(a.level));
+            int current = slot == GearSlot.Waffe ? oc.weaponUid : slot == GearSlot.Ruestung ? oc.armorUid : oc.amuletUid;
+            float rowH = 120f;
+            content.sizeDelta = new Vector2(0f, Mathf.Max(1, list.Count) * (rowH + 10f) + 10f);
+            if (list.Count == 0)
+            {
+                var none = UIKit.Text(content, "Leer", "Noch keine Gegenstände für diesen Platz.", 30f, new Color(1f, 1f, 1f, 0.6f), TextAlignmentOptions.Center);
+                none.rectTransform.anchorMin = new Vector2(0f, 1f);
+                none.rectTransform.anchorMax = new Vector2(1f, 1f);
+                none.rectTransform.pivot = new Vector2(0.5f, 1f);
+                none.rectTransform.sizeDelta = new Vector2(0f, 120f);
+            }
+            for (int i = 0; i < list.Count; i++)
+            {
+                var g = list[i];
+                var gd = g.Def;
+                var row = UIKit.Img(content, "Gegenstand", UIKit.Rounded, g.uid == current ? new Color(0.2f, 0.35f, 0.25f, 0.9f) : new Color(1f, 1f, 1f, 0.06f));
+                row.rectTransform.anchorMin = new Vector2(0f, 1f);
+                row.rectTransform.anchorMax = new Vector2(1f, 1f);
+                row.rectTransform.pivot = new Vector2(0.5f, 1f);
+                row.rectTransform.anchoredPosition = new Vector2(0f, -10f - i * (rowH + 10f));
+                row.rectTransform.sizeDelta = new Vector2(-20f, rowH);
+                var gem = UIKit.Img(row.transform, "Stein", UIKit.Rounded, Look.RarityColor(gd.rarity));
+                UIKit.Place(gem.rectTransform, new Vector2(0f, 0.5f), new Vector2(44f, 0f), new Vector2(40f, 40f));
+                gem.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+                var wearer = D.WearerOf(g.uid);
+                string w = wearer == null ? "" : wearer == oc ? "  <color=#7dffb0>(angelegt)</color>" : $"  <color=#bbbbcc>(trägt {wearer.Name})</color>";
+                var t = UIKit.Text(row.transform, "Text",
+                    $"<b><color={Look.Hex(Look.RarityColor(gd.rarity))}>{gd.name}</color></b> <size=80%>Stufe {g.level}/{GearDb.MaxLevel}</size>{w}\n<size=78%>{GearDb.Bonus(gd.id, g.level).Describe()}</size>\n<size=70%><i><color=#c9b99a>{gd.text}</color></i></size>",
+                    26f, Color.white, TextAlignmentOptions.MidlineLeft);
+                UIKit.Stretch(t.rectTransform, 84, 4, 440, 4);
+                t.enableAutoSizing = true; t.fontSizeMin = 12; t.fontSizeMax = 26;
+                var eq = Btn(row.transform, g.uid == current ? "Ablegen" : "Anlegen", g.uid == current ? UX.Grey : UX.Green, () =>
+                {
+                    if (g.uid == current) Progress.Unequip(oc, slot);
+                    else if (!Progress.Equip(D, oc, g.uid, out var err)) Toast(err);
+                    Game.Save();
+                    ShowGearPicker(d, slot);
+                }, 26f);
+                UIKit.Place((RectTransform)eq.transform, new Vector2(1f, 0.5f), new Vector2(-330f, 0f), new Vector2(190f, 84f));
+                bool max = g.level >= GearDb.MaxLevel;
+                var up = Btn(row.transform, max ? "Max." : $"Aufwerten\n<size=75%>{Progress.GearUpgradeCost(g)} Gold</size>", new Color(0.8f, 0.6f, 0.15f), () =>
+                {
+                    if (Progress.UpgradeGear(D, g, out var err)) { Game.Save(); Sound.Play("selten"); }
+                    else Toast(err);
+                    RefreshTop();
+                    ShowGearPicker(d, slot);
+                }, 24f);
+                up.interactable = !max;
+                UIKit.Place((RectTransform)up.transform, new Vector2(1f, 0.5f), new Vector2(-115f, 0f), new Vector2(210f, 84f));
+            }
+
+            var back = Btn(panel.transform, "Zurück", UX.Grey, () => ShowDetail(d), 32f);
+            UIKit.Place((RectTransform)back.transform, new Vector2(0.5f, 0f), new Vector2(0f, 65f), new Vector2(300f, 84f));
         }
 
         void AddAction(RectTransform row, int i, string label, Color c, UnityEngine.Events.UnityAction a)

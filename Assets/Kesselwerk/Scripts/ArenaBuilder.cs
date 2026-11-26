@@ -15,6 +15,8 @@ namespace Kesselwerk
 
         /// <summary>Tiefenunschärfe – wird von der Kamera passend zum Abstand eingestellt.</summary>
         public static DepthOfField Dof;
+        public static ColorAdjustments Grade;
+        public static WhiteBalance Balance;
 
         public static void FocusAt(float distance)
         {
@@ -41,6 +43,46 @@ namespace Kesselwerk
         // ------------------------------------------------------------------
         // Licht, Himmel, Kamera, Post-Processing
         // ------------------------------------------------------------------
+
+        /// <summary>Stimmung je Region (Biom): Licht, Nebel und Farbfilter.</summary>
+        public static void ApplyRegionMood(int region)
+        {
+            Light sun = null;
+            foreach (var l in Object.FindObjectsByType<Light>(FindObjectsSortMode.None))
+                if (l.type == LightType.Directional) { sun = l; break; }
+            Color filter = Color.white, fog = RenderSettings.fogColor, sunCol = sun != null ? sun.color : Color.white;
+            float temp = 12f, sunI = 1.5f, fogStart = 20f, fogEnd = 65f;
+            switch (region)
+            {
+                case 1: // Vulkan
+                    filter = new Color(1f, 0.82f, 0.72f); fog = new Color(0.55f, 0.3f, 0.22f); sunCol = new Color(1f, 0.6f, 0.4f);
+                    temp = 35f; sunI = 1.3f; fogStart = 12f; fogEnd = 45f;
+                    RenderSettings.ambientSkyColor = new Color(0.7f, 0.42f, 0.35f);
+                    RenderSettings.ambientEquatorColor = new Color(0.65f, 0.4f, 0.3f);
+                    break;
+                case 2: // Eis
+                    filter = new Color(0.85f, 0.95f, 1.05f); fog = new Color(0.85f, 0.92f, 1f); sunCol = new Color(0.9f, 0.95f, 1f);
+                    temp = -25f; sunI = 1.6f; fogStart = 10f; fogEnd = 40f;
+                    RenderSettings.ambientSkyColor = new Color(0.75f, 0.85f, 1f);
+                    RenderSettings.ambientEquatorColor = new Color(0.8f, 0.85f, 0.95f);
+                    break;
+                case 3: // Schatten
+                    filter = new Color(0.78f, 0.7f, 0.95f); fog = new Color(0.18f, 0.12f, 0.28f); sunCol = new Color(0.7f, 0.6f, 1f);
+                    temp = -10f; sunI = 0.9f; fogStart = 8f; fogEnd = 38f;
+                    RenderSettings.ambientSkyColor = new Color(0.35f, 0.3f, 0.55f);
+                    RenderSettings.ambientEquatorColor = new Color(0.3f, 0.25f, 0.4f);
+                    RenderSettings.ambientGroundColor = new Color(0.15f, 0.12f, 0.2f);
+                    break;
+            }
+            RenderSettings.fogColor = fog;
+            RenderSettings.fogStartDistance = fogStart;
+            RenderSettings.fogEndDistance = fogEnd;
+            if (sun != null) { sun.color = sunCol; sun.intensity = sunI; }
+            if (Grade != null) Grade.colorFilter.Override(filter);
+            if (Balance != null) Balance.temperature.Override(temp);
+            if (RenderSettings.skybox != null && region > 0)
+                RenderSettings.skybox.SetColor("_SkyTint", Color.Lerp(new Color(0.5f, 0.65f, 1f), fog, 0.6f));
+        }
 
         public static Camera SetupCameraAndLight()
         {
@@ -122,12 +164,14 @@ namespace Kesselwerk
             vignette.smoothness.Override(0.5f);
 
             var color = profile.Add<ColorAdjustments>(true);
+            Grade = color;
             color.postExposure.Override(0.2f);
             color.contrast.Override(8f);
             color.saturation.Override(22f);
 
             var wb = profile.Add<WhiteBalance>(true);
             wb.temperature.Override(12f);
+            Balance = wb;
 
             var tone = profile.Add<Tonemapping>(true);
             tone.mode.Override(TonemappingMode.Neutral);
