@@ -21,6 +21,8 @@ namespace Kesselwerk.Core
         public int weaponLv = 1, armorLv = 1, amuletLv = 1;
         // Gewählte Attacken (Index im Attacken-Pool, -1 = automatisch)
         public int move1 = -1, move2 = -1;
+        // Wabenfeld: Feld der eigenen Seite (0–27, Reihe 0 = vorne), -1 = klassische 6 Plätze
+        public int hex = -1;
 
         public UnitSpec() { }
         public UnitSpec(string id, int level, int slot, int stars = 1, int stage = 0)
@@ -34,6 +36,7 @@ namespace Kesselwerk.Core
     {
         public List<UnitSpec> units = new List<UnitSpec>();
         public const int Slots = 6;
+        public const int MaxHexUnits = 10;
 
         public TeamSpec Add(UnitSpec u) { units.Add(u); return this; }
 
@@ -48,12 +51,14 @@ namespace Kesselwerk.Core
         {
             error = null;
             if (units.Count == 0) { error = "Das Team ist leer."; return false; }
-            if (units.Count > Slots) { error = "Höchstens sechs Kreaturen."; return false; }
+            bool hexMode = units[0].hex >= 0;
+            if (units.Count > (hexMode ? MaxHexUnits : Slots)) { error = hexMode ? "Zu viele Kreaturen." : "Höchstens sechs Kreaturen."; return false; }
             var used = new HashSet<int>();
             foreach (var u in units)
             {
                 if (CreatureDb.Get(u.id) == null) { error = "Unbekannte Kreatur: " + u.id; return false; }
-                if (u.slot < 0 || u.slot >= Slots || !used.Add(u.slot)) { error = "Ungültiges Feld."; return false; }
+                if ((u.hex >= 0) != hexMode) { error = "Gemischte Aufstellung."; return false; }
+                if (hexMode ? (u.hex >= Hex.SideCells || !used.Add(u.hex)) : (u.slot < 0 || u.slot >= Slots || !used.Add(u.slot))) { error = "Ungültiges Feld."; return false; }
                 if (u.level < 1 || u.level > Stats.MaxLevelCap || u.stars < 1 || u.stars > Stats.MaxStars) { error = "Ungültige Stufe."; return false; }
                 if (u.level > Stats.MaxLevel(u.stars)) { error = "Stufe über der Sterngrenze."; return false; }
                 var cd = CreatureDb.Get(u.id);
@@ -180,6 +185,7 @@ namespace Kesselwerk.Core
         public MoveFx[] moveFx;
         public int[] moveRank;
         public int moveTurn;
+        public int pos = -1;       // Feld auf dem Wabenfeld (-1 = klassisch)
 
         public float maxHp, hp, atk, defense, spd, crit, critDmg = 1.5f, dodge, lifesteal, regen, energyMul = 1f, healTakenMul = 1f, thorns;
         public float shield, gauge, energy;
@@ -232,6 +238,7 @@ namespace Kesselwerk.Core
         Poison,     // vergiftet (target, value = Stapel)
         PoisonTick, // Giftschaden (target, value)
         Phase,      // Bossphase beginnt (actor = Boss, text = Name)
+        Move,       // läuft auf dem Wabenfeld (actor, value = neues Feld)
         Death,      // stirbt (target)
         End,        // Kampfende (value = Sieger)
     }
@@ -326,7 +333,7 @@ namespace Kesselwerk.Core
             }
 
             var sorted = new List<UnitSpec>(team.units);
-            sorted.Sort((a, b) => a.slot.CompareTo(b.slot));
+            sorted.Sort((a, b) => (a.hex >= 0 ? a.hex : a.slot).CompareTo(b.hex >= 0 ? b.hex : b.slot));
             foreach (var spec in sorted)
             {
                 var d = CreatureDb.Get(spec.id);
@@ -335,6 +342,7 @@ namespace Kesselwerk.Core
                 {
                     uid = units.Count, team = side, slot = spec.slot, def = d, spec = spec,
                 };
+                if (spec.hex >= 0) u.pos = Hex.ToBoard(spec.hex, side);
                 var pool = MoveDb.PoolFor(d);
                 var eq = MoveDb.Equipped(d, spec);
                 u.moves = new SkillDef[eq.Length]; u.moveFx = new MoveFx[eq.Length]; u.moveRank = new int[eq.Length];
@@ -494,6 +502,13 @@ namespace Kesselwerk.Core
                 return;
             }
 
+            // Wabenfeld: erst laufen, wenn kein Gegner in Reichweite ist
+            if (a.pos >= 0)
+            {
+                var t = ChooseTarget(a);
+                if (t == null) return;
+                if (Hex.Distance(a.pos, t.pos) > Range(a)) { Step(a, t); return; }
+            }
             if (a.energy >= 100f) { a.energy = 0f; CastSkill(a); }
             else BasicAttack(a);
         }
@@ -623,7 +638,7 @@ namespace Kesselwerk.Core
                     ev.target = t.uid; events.Add(ev);
                     var targets = new List<BattleUnit> { t };
                     foreach (var e in Enemies(a))
-                        if (e != t && e.Front == t.Front && Math.Abs(e.Column - t.Column) == 1) targets.Add(e);
+                        if (e != t && (t.pos >= 0 ? Hex.Distance(e.pos, t.pos) == 1 : e.Front == t.Front && Math.Abs(e.Column - t.Column) == 1)) targets.Add(e);
                     foreach (var e in targets)
                         if (Hit(a, e, s.power, false, false) && e.Alive && s.duration > 0 && e == t)
                         {
@@ -642,7 +657,14 @@ namespace Kesselwerk.Core
                 {
                     events.Add(ev);
                     var list = new List<BattleUnit>();
-                    foreach (var e in Enemies(a)) if (!e.Front) list.Add(e);
+                    if (a.pos >= 0)
+                    {
+                        // Wabenfeld: die entferntere Hälfte der Gegner
+                        var all = Enemies(a);
+                        all.Sort((x, y) => Hex.Distance(a.pos, y.pos) != Hex.Distance(a.pos, x.pos) ? Hex.Distance(a.pos, y.pos).CompareTo(Hex.Distance(a.pos, x.pos)) : x.uid.CompareTo(y.uid));
+                        for (int k = 0; k < Math.Max(1, (all.Count + 1) / 2); k++) list.Add(all[k]);
+                    }
+                    else foreach (var e in Enemies(a)) if (!e.Front) list.Add(e);
                     if (list.Count == 0) list = Enemies(a);
                     foreach (var e in list) Hit(a, e, s.power, false, false);
                     break;
@@ -860,10 +882,48 @@ namespace Kesselwerk.Core
         /// Provozierende Gegner zuerst. Nahkämpfer greifen die vordere Reihe an (gleiche Spalte bevorzugt),
         /// erst wenn sie leer ist die hintere. Fernkämpfer konzentrieren sich auf den schwächsten Gegner.
         /// </summary>
+        static int Range(BattleUnit a) => a.def.ranged ? 3 : 1;
+
+        /// <summary>Bis zu zwei Waben auf das Ziel zu (freie Felder, fest definierte Reihenfolge).</summary>
+        void Step(BattleUnit a, BattleUnit t)
+        {
+            for (int step = 0; step < 2; step++)
+            {
+                int cur = Hex.Distance(a.pos, t.pos);
+                if (cur <= Range(a)) break;
+                int best = -1, bestD = cur;
+                foreach (int n in Hex.Neighbors(a.pos))
+                {
+                    bool free = true;
+                    foreach (var u in units) if (u.Alive && u != a && u.pos == n) { free = false; break; }
+                    if (!free) continue;
+                    int d = Hex.Distance(n, t.pos);
+                    if (d < bestD || (d == bestD && best >= 0 && n < best)) { best = n; bestD = d; }
+                }
+                if (best < 0) break;
+                a.pos = best;
+                Emit(EvType.Move, a.uid, t.uid, best);
+            }
+        }
+
         BattleUnit ChooseTarget(BattleUnit a)
         {
             var enemies = Enemies(a);
             if (enemies.Count == 0) return null;
+            if (a.pos >= 0)
+            {
+                // Wabenfeld: Provozierende in Reichweite+2, sonst der nächste Gegner (bei Gleichstand der schwächere)
+                BattleUnit bt = null; int bd = int.MaxValue;
+                foreach (var e in enemies)
+                    if (e.tauntTurns > 0 && Hex.Distance(a.pos, e.pos) <= Range(a) + 2 && (bt == null || e.hp < bt.hp)) bt = e;
+                if (bt != null) return bt;
+                foreach (var e in enemies)
+                {
+                    int d = Hex.Distance(a.pos, e.pos);
+                    if (d < bd || (d == bd && (e.hp < bt.hp || (e.hp == bt.hp && e.uid < bt.uid)))) { bt = e; bd = d; }
+                }
+                return bt;
+            }
 
             BattleUnit best = null;
             foreach (var e in enemies)

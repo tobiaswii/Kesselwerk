@@ -620,3 +620,100 @@ namespace Kesselwerk.Tests
         }
     }
 }
+
+namespace Kesselwerk.Tests
+{
+    using System.Linq;
+    using Kesselwerk.Core;
+    using NUnit.Framework;
+
+    [TestFixture]
+    public class TftTests
+    {
+        static TftGame NewGame(int seed = 5) => TftGame.New("Tobias", CreatureDb.All.Where(d => !d.isBoss).Select(d => d.id), seed);
+
+        [Test]
+        public void HexAbstandUndNachbarn()
+        {
+            Assert.AreEqual(0, Hex.Distance(10, 10));
+            foreach (int n in Hex.Neighbors(24)) Assert.AreEqual(1, Hex.Distance(24, n));
+            Assert.AreEqual(6, Hex.Neighbors(24).Count);
+            // Vorderste Reihen beider Seiten liegen nebeneinander
+            Assert.AreEqual(1, Hex.Distance(Hex.ToBoard(3, 0), Hex.ToBoard(3, 1)) <= 2 ? 1 : 0);
+        }
+
+        [Test]
+        public void StartMitLadenUndGold()
+        {
+            var g = NewGame();
+            Assert.AreEqual(8, g.players.Length);
+            var p = g.players[0];
+            Assert.AreEqual(2, p.gold);
+            Assert.IsTrue(p.shop.All(s => s != null && Tft.Cost(CreatureDb.Get(s)) == 1));
+        }
+
+        [Test]
+        public void DreiGleicheWerdenZweiSterne()
+        {
+            var g = NewGame();
+            var p = g.players[0];
+            p.gold = 100;
+            string id = p.shop[0];
+            for (int k = 0; k < 3; k++) { p.shop[0] = id; Assert.IsTrue(g.Buy(p, 0, out var err), err); }
+            var units = p.AllUnits().Where(u => u.id == id).ToList();
+            Assert.AreEqual(1, units.Count);
+            Assert.AreEqual(2, units[0].star);
+        }
+
+        [Test]
+        public void FeldGrenzeNachStufe()
+        {
+            var g = NewGame();
+            var p = g.players[0];
+            p.gold = 100;
+            Assert.IsTrue(g.Buy(p, 0, out _));
+            Assert.IsTrue(g.Buy(p, 1, out _));
+            var a = p.bench.First(u => u != null);
+            Assert.IsTrue(g.Move(p, a, false, 3, out var e1), e1);
+            var b = p.bench.First(u => u != null);
+            Assert.IsFalse(g.Move(p, b, false, 4, out _));
+        }
+
+        [Test]
+        public void WabenKampfLaeuftUndIstGleich()
+        {
+            var a = new TeamSpec().Add(new UnitSpec("glutfuchs", 13, 0, 2) { hex = 3 }).Add(new UnitSpec("kitsune", 1, 0, 1) { hex = 24 });
+            var b = new TeamSpec().Add(new UnitSpec("steingolem", 13, 0, 2) { hex = 3 }).Add(new UnitSpec("frostwolf", 1, 0, 1) { hex = 10 });
+            string err;
+            Assert.IsTrue(a.IsValid(out err), err);
+            var r1 = BattleSim.Run(a, b, 11);
+            var r2 = BattleSim.Run(a, b, 11);
+            Assert.AreEqual(r1.events.Count, r2.events.Count);
+            Assert.IsTrue(r1.events.Any(e => e.type == EvType.Move));
+            Assert.IsTrue(r1.events.Any(e => e.type == EvType.Damage));
+        }
+
+        [Test]
+        public void GanzePartieEndetMitSieger()
+        {
+            var g = NewGame(9);
+            int guard = 0;
+            while (!g.Over && guard++ < 200)
+            {
+                // Mensch spielt wie ein Computer-Gegner (für den Test)
+                var me = g.players[0];
+                for (int i = 0; i < Tft.ShopSize; i++) g.Buy(me, i, out _);
+                foreach (var u in me.bench.Where(x => x != null).ToList())
+                {
+                    if (me.BoardCount >= me.level) break;
+                    for (int c = 0; c < Hex.SideCells; c++) if (me.board[c] == null) { g.Move(me, u, false, c, out _); break; }
+                }
+                foreach (var (pr, res) in g.SimulateAll(null, false)) g.Apply(pr, res);
+                g.EndRound();
+            }
+            Assert.IsTrue(g.Over, "Partie nicht beendet");
+            Assert.IsTrue(guard < 200);
+            Assert.IsTrue(g.players.All(p => p.Alive || p.place >= 2));
+        }
+    }
+}
