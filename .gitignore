@@ -68,3 +68,6 @@ desktop.ini
 *.jks
 *.p12
 *.mobileprovision
+
+# Test-Brücke (lokal)
+/ClaudeBridge/

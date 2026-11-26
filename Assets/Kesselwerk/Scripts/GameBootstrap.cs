@@ -18,7 +18,7 @@ namespace Kesselwerk
                 return;
             }
 
-            if (Object.FindFirstObjectByType<BattleManager>() == null && Object.FindFirstObjectByType<MenuManager>() == null)
+            if (Object.FindFirstObjectByType<AutoBattleManager>() == null && Object.FindFirstObjectByType<MenuManager>() == null)
                 GameFlow.ToMenu();
         }
 

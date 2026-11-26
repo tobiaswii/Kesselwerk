@@ -1,3 +1,4 @@
+using Kesselwerk.Core;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -14,7 +15,8 @@ namespace Kesselwerk
         public const float W = 220f;
         public const float H = 320f;
 
-        public CardData card;
+        public CreatureDef def;
+        public OwnedCreature owned;
         public RectTransform rt;
         public Button button;
         public CanvasGroup group;
@@ -24,16 +26,7 @@ namespace Kesselwerk
         float sheenOffset;
         float sheenPeriod;
 
-        static Color Metal(Rarity r)
-        {
-            switch (r)
-            {
-                case Rarity.Rare: return new Color(0.35f, 0.62f, 1f);
-                case Rarity.Epic: return new Color(0.72f, 0.42f, 1f);
-                case Rarity.Legendary: return new Color(1f, 0.78f, 0.3f);
-                default: return new Color(0.78f, 0.8f, 0.84f);
-            }
-        }
+        static Color Metal(Rarity r) => Look.RarityColor(r);
 
         static Image Diamond(Transform parent, string name, Color color, Vector2 anchor, Vector2 pos, float size)
         {
@@ -50,27 +43,33 @@ namespace Kesselwerk
             return img;
         }
 
-        public static CardView Create(Transform parent, CardData card)
+        /// <summary>Karte einer Kreatur. owned = null zeigt Stufe 1; unknown = noch nicht entdeckt (Silhouette).</summary>
+        public static CardView Create(Transform parent, CreatureDef def, OwnedCreature owned = null, bool unknown = false)
         {
-            var rt = UIKit.Rect("Karte_" + card.name, parent);
+            int stage = owned != null ? owned.stage : 0;
+            var spec = owned != null ? owned.ToSpec(0) : new UnitSpec(def.id, 1, 0);
+            Color elemColor = Look.ElementColor(def.element);
+            string cardName = unknown ? "???" : def.StageName(stage);
+            var rt = UIKit.Rect("Karte_" + def.id, parent);
             rt.sizeDelta = new Vector2(W, H);
             rt.pivot = new Vector2(0.5f, 0.5f);
 
             var cv = rt.gameObject.AddComponent<CardView>();
             cv.rt = rt;
-            cv.card = card;
+            cv.def = def;
+            cv.owned = owned;
             cv.group = rt.gameObject.AddComponent<CanvasGroup>();
 
-            Color metal = Metal(card.rarity);
+            Color metal = Metal(def.rarity);
             Color metalDark = Color.Lerp(metal, Color.black, 0.55f);
             Color metalLight = Color.Lerp(metal, Color.white, 0.45f);
-            bool fancy = card.rarity != Rarity.Common;
+            bool fancy = !unknown && def.rarity >= Rarity.Selten;
 
             // Leuchten (spielbar) und Schatten
             cv.glowImg = StretchImg(rt, "Leuchten", UIKit.RoundedSoft, new Color(1f, 0.85f, 0.3f, 0f), -24, -24, -24, -24);
             StretchImg(rt, "Schatten", UIKit.RoundedSoft, new Color(0f, 0f, 0f, 0.65f), -10, -20, -10, -4);
             if (fancy)
-                StretchImg(rt, "Seltenheitsschein", UIKit.RoundedSoft, new Color(metal.r, metal.g, metal.b, card.rarity == Rarity.Legendary ? 0.55f : 0.35f), -14, -14, -14, -14);
+                StretchImg(rt, "Seltenheitsschein", UIKit.RoundedSoft, new Color(metal.r, metal.g, metal.b, def.rarity >= Rarity.Legendaer ? 0.55f : 0.35f), -14, -14, -14, -14);
 
             // Metallrahmen in drei Lagen (dunkel, hell, Grundfarbe) wirkt geprägt
             var frame = StretchImg(rt, "Rahmen", UIKit.Rounded, metalDark, 0, 0, 0, 0);
@@ -82,9 +81,9 @@ namespace Kesselwerk
             StretchImg(rt, "RahmenSchattierung", UIKit.Gradient, new Color(0f, 0f, 0f, 0.35f), 5, 5, 5, 5);
 
             // Innenfläche mit Farbverlauf in Monsterfarbe
-            var inner = StretchImg(rt, "Innen", UIKit.Rounded, Color.Lerp(card.color, new Color(0.08f, 0.06f, 0.1f), 0.72f), 11, 11, 11, 11);
+            var inner = StretchImg(rt, "Innen", UIKit.Rounded, Color.Lerp(elemColor, new Color(0.08f, 0.06f, 0.1f), 0.72f), 11, 11, 11, 11);
             inner.gameObject.AddComponent<Mask>().showMaskGraphic = true;
-            var innerGlow = UIKit.Img(inner.transform, "InnenLicht", UIKit.Glow, new Color(card.color.r, card.color.g, card.color.b, 0.45f));
+            var innerGlow = UIKit.Img(inner.transform, "InnenLicht", UIKit.Glow, new Color(elemColor.r, elemColor.g, elemColor.b, 0.45f));
             UIKit.Place(innerGlow.rectTransform, new Vector2(0.5f, 0.68f), Vector2.zero, new Vector2(300f, 260f));
 
             // Großes Monsterbild
@@ -103,14 +102,15 @@ namespace Kesselwerk
             UIKit.Stretch(artRt);
             var raw = artRt.gameObject.AddComponent<RawImage>();
             raw.raycastTarget = false;
-            var portrait = MonsterModel.Portrait(card);
+            var portrait = MonsterModel.Portrait(def);
+            if (unknown) raw.color = new Color(0f, 0f, 0f, 0.92f);
             if (portrait != null)
             {
                 raw.texture = portrait;
                 // Porträt 256x320, Rahmen ~194x188: oberen Teil fast quadratisch zeigen
                 raw.uvRect = new Rect(0.02f, 0.1f, 0.96f, 0.8f);
             }
-            else raw.color = card.color;
+            else raw.color = elemColor;
 
             var shadeTop = UIKit.Img(mask.transform, "VerlaufOben", UIKit.Gradient, new Color(0f, 0f, 0f, 0.35f));
             shadeTop.rectTransform.anchorMin = new Vector2(0f, 0.78f);
@@ -125,13 +125,13 @@ namespace Kesselwerk
             // Folienglanz (läuft schräg über das Bild)
             if (fancy)
             {
-                var sh = UIKit.Img(mask.transform, "Glanz", UIKit.Glow, new Color(1f, 1f, 1f, card.rarity == Rarity.Legendary ? 0.55f : 0.38f));
+                var sh = UIKit.Img(mask.transform, "Glanz", UIKit.Glow, new Color(1f, 1f, 1f, def.rarity >= Rarity.Legendaer ? 0.55f : 0.38f));
                 sh.rectTransform.anchorMin = sh.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
                 sh.rectTransform.sizeDelta = new Vector2(70f, 420f);
                 sh.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -28f);
                 cv.sheen = sh.rectTransform;
                 cv.sheenOffset = Random.value * 3f;
-                cv.sheenPeriod = card.rarity == Rarity.Legendary ? 2.2f : 3.2f;
+                cv.sheenPeriod = def.rarity >= Rarity.Legendaer ? 2.2f : 3.2f;
             }
 
             // Namensband (ragt seitlich über den Rahmen hinaus)
@@ -142,19 +142,18 @@ namespace Kesselwerk
             ribbon.offsetMax = new Vector2(8f, -190f);
             StretchImg(ribbon, "BandSchatten", UIKit.RoundedSoft, new Color(0f, 0f, 0f, 0.5f), -4, -8, -4, 0);
             StretchImg(ribbon, "BandRand", UIKit.Rounded, metalDark, 0, 0, 0, 0);
-            StretchImg(ribbon, "Band", UIKit.Rounded, Color.Lerp(card.color, new Color(0.2f, 0.12f, 0.06f), 0.4f), 2, 2, 2, 2);
+            StretchImg(ribbon, "Band", UIKit.Rounded, Color.Lerp(elemColor, new Color(0.2f, 0.12f, 0.06f), 0.4f), 2, 2, 2, 2);
             var bandShine = StretchImg(ribbon, "BandGlanz", UIKit.Gradient, new Color(1f, 1f, 1f, 0.22f), 2, 2, 2, 2);
             bandShine.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 180f);
             Diamond(ribbon, "BandEndeL", metal, new Vector2(0f, 0.5f), new Vector2(2f, 0f), 18f);
             Diamond(ribbon, "BandEndeR", metal, new Vector2(1f, 0.5f), new Vector2(-2f, 0f), 18f);
 
-            var name = UIKit.Text(ribbon, "Name", card.name, 26f, Color.white, TextAlignmentOptions.Center, true);
+            var name = UIKit.Text(ribbon, "Name", cardName, 26f, Color.white, TextAlignmentOptions.Center, true);
             UIKit.Stretch(name.rectTransform, 22, 1, 22, 1);
             name.enableAutoSizing = true;
             name.fontSizeMin = 12f;
             name.fontSizeMax = 26f;
-            name.outlineWidth = 0.25f;
-            name.outlineColor = new Color32(0, 0, 0, 200);
+            UX.Outline(name, 0.25f);
 
             // Regeltext auf Pergament
             var box = UIKit.Img(rt, "Textfeld", UIKit.Rounded, new Color(0.96f, 0.92f, 0.82f, 0.96f));
@@ -164,10 +163,9 @@ namespace Kesselwerk
             box.rectTransform.offsetMax = new Vector2(-16f, 94f);
             StretchImg(box.transform, "Pergamentrand", UIKit.Gradient, new Color(0.55f, 0.4f, 0.2f, 0.25f), 0, 0, 0, 0);
 
-            string rules = card.RulesText;
-            string body = string.IsNullOrEmpty(rules)
-                ? $"<i><color=#5b4a36>{card.flavor}</color></i>"
-                : $"<b>{rules}</b>\n<i><color=#6b5a46><size=80%>{card.flavor}</size></color></i>";
+            string body = unknown
+                ? $"<i><color=#5b4a36>Noch nicht entdeckt.\n{Look.RarityName(def.rarity)} · {def.element}</color></i>"
+                : $"<b>{def.skill.name}:</b> {def.skill.text}\n<color=#6b5a46><size=85%>{Look.RoleName(def.role)} · {Look.RarityName(def.rarity)}</size></color>";
             var text = UIKit.Text(box.transform, "Regeln", body, 15f, new Color(0.15f, 0.1f, 0.08f), TextAlignmentOptions.Center);
             UIKit.Stretch(text.rectTransform, 30, 4, 30, 4);
             text.enableAutoSizing = true;
@@ -193,12 +191,26 @@ namespace Kesselwerk
             Diamond(gemHolder, "SteinGlanz", new Color(1f, 1f, 1f, 0.75f), new Vector2(0.5f, 0.5f), new Vector2(-3f, 4f), 8f);
 
             // Werte (große Abzeichen)
-            var cost = UIKit.Badge(rt, "Kosten", new Color(0.2f, 0.45f, 0.95f), 64f, card.cost.ToString());
-            UIKit.Place((RectTransform)cost.transform.parent, new Vector2(0f, 1f), new Vector2(26f, -26f), new Vector2(64f, 64f));
-            var atk = UIKit.Badge(rt, "Angriff", new Color(0.88f, 0.22f, 0.15f), 62f, card.attack.ToString());
-            UIKit.Place((RectTransform)atk.transform.parent, new Vector2(0f, 0f), new Vector2(18f, 20f), new Vector2(62f, 62f));
-            var hp = UIKit.Badge(rt, "Leben", new Color(0.22f, 0.68f, 0.28f), 62f, card.health.ToString());
-            UIKit.Place((RectTransform)hp.transform.parent, new Vector2(1f, 0f), new Vector2(-18f, 20f), new Vector2(62f, 62f));
+            var elem = UIKit.Badge(rt, "Element", Color.Lerp(elemColor, Color.black, 0.15f), 64f, Look.ElementShort(def.element));
+            elem.fontSize = 20f;
+            UIKit.Place((RectTransform)elem.transform.parent, new Vector2(0f, 1f), new Vector2(26f, -26f), new Vector2(64f, 64f));
+            if (!unknown)
+            {
+                var atk = UIKit.Badge(rt, "Angriff", new Color(0.88f, 0.22f, 0.15f), 62f, Stats.Atk(def, spec).ToString());
+                atk.fontSize = 22f;
+                UIKit.Place((RectTransform)atk.transform.parent, new Vector2(0f, 0f), new Vector2(18f, 20f), new Vector2(62f, 62f));
+                var hp = UIKit.Badge(rt, "Leben", new Color(0.22f, 0.68f, 0.28f), 62f, Stats.Hp(def, spec).ToString());
+                hp.fontSize = 20f;
+                UIKit.Place((RectTransform)hp.transform.parent, new Vector2(1f, 0f), new Vector2(-18f, 20f), new Vector2(62f, 62f));
+
+                // Stufe und Sterne unter dem Bild
+                string lvl = owned != null ? $"Stufe {owned.level}  <color=#ffd23f>{Look.Stars(owned.stars)}</color>" : "Stufe 1";
+                var lv = UIKit.Text(rt, "Stufe", lvl, 17f, Color.white, TextAlignmentOptions.Center, true);
+                lv.rectTransform.anchorMin = lv.rectTransform.anchorMax = new Vector2(0.5f, 1f);
+                lv.rectTransform.anchoredPosition = new Vector2(0f, -178f);
+                lv.rectTransform.sizeDelta = new Vector2(180f, 24f);
+                UX.Outline(lv, 0.25f);
+            }
 
             return cv;
         }

@@ -1,58 +1,64 @@
 using System.Collections;
 using System.Collections.Generic;
+using Kesselwerk.Core;
 using UnityEngine;
 
 namespace Kesselwerk
 {
     /// <summary>
-    /// Ein Monster in der Arena. Schaut in Ruhe zur Kamera, dreht sich zum Angreifen zum Ziel.
-    /// Fehlt das 3D-Modell, wird ein Platzhalter aus Grundformen gebaut.
+    /// 3D-Darstellung einer Kreatur: Modell, Animationen (Idle, Laufen, Angriff, Spezial,
+    /// Treffer, Zurückstoßen, Tod, Sieg) und Effekte nach Element und Seltenheit.
     /// </summary>
     public class Creature : MonoBehaviour
     {
-        public CardData card;
-        public int attack;
-        public int health;
-        public int maxHealth;
+        public CreatureDef def;
+        public int stage;
         public bool isPlayer;
         public int slot;
-        public bool hasAttacked;
-
-        public Keyword Keyword => card.keyword;
-        public bool IsDead => health <= 0;
-        /// <summary>Höhe des Modells in Metern (für Anzeigen darüber).</summary>
         public float Height { get; private set; } = 1.2f;
+        public bool IsDead { get; private set; }
 
-        Vector3 home;
+        public Vector3 home;
         Quaternion homeRot;
-        float bobSeed;
-        bool animating;
-        bool hasModel;
         MonsterAnimator anim;
+        bool hasModel;
+        bool busy;
+        float bobSeed;
+        Transform body;
 
         readonly List<Material> materials = new List<Material>();
         readonly List<Color> baseColors = new List<Color>();
 
-        public static Creature Spawn(CardData card, Vector3 position, bool isPlayer, int slot)
+        public Color ElementColor => Look.ElementColor(def.element);
+        public Vector3 Center => transform.position + Vector3.up * Height * 0.55f;
+        public Vector3 Top => transform.position + Vector3.up * (Height + 0.35f);
+
+        /// <summary>Erzeugt eine Kreatur. facing = Blickrichtung in Ruhe.</summary>
+        public static Creature Spawn(CreatureDef def, int stage, Vector3 position, Vector3 facing, bool isPlayer, int slot, float sizeMul = 1f)
         {
-            var root = new GameObject("Kreatur_" + card.name);
+            var root = new GameObject("Kreatur_" + def.StageName(stage));
             root.transform.position = position;
-            // Beide Seiten schauen zur Kamera (die steht auf der Spielerseite bei -Z)
-            root.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+            root.transform.rotation = Quaternion.LookRotation(facing.sqrMagnitude > 0.001f ? facing : Vector3.forward);
 
             var c = root.AddComponent<Creature>();
-            c.card = card;
-            c.attack = card.attack;
-            c.health = card.health;
-            c.maxHealth = card.health;
+            c.def = def;
+            c.stage = stage;
             c.isPlayer = isPlayer;
             c.slot = slot;
             c.home = position;
             c.homeRot = root.transform.rotation;
             c.bobSeed = Random.Range(0f, 10f);
 
-            float targetHeight = Mathf.Min(1.35f + card.cost * 0.1f, 2.1f);
-            var model = MonsterModel.Load(card, root.transform, targetHeight, out var animator, out var clips);
+            var bodyGo = new GameObject("Koerper");
+            bodyGo.transform.SetParent(root.transform, false);
+            c.body = bodyGo.transform;
+
+            // Größe nach Rolle, Seltenheit und Entwicklungsstufe – Bosse sind riesig
+            float h = 1.35f + (int)def.rarity * 0.1f + (def.role == Role.Tank ? 0.2f : 0f) + stage * 0.3f;
+            if (def.isBoss) h = 3.1f;
+            h *= sizeMul;
+
+            var model = MonsterModel.Load(def.model, c.body, h, out var animator, out var clips);
             if (model != null)
             {
                 c.hasModel = true;
@@ -63,62 +69,59 @@ namespace Kesselwerk
             }
             else
             {
-                c.BuildPrimitiveBody();
+                c.BuildPlaceholder(h); // klar erkennbarer Platzhalter, falls ein Modell fehlt
             }
             c.CollectMaterials();
 
-            // Seltene Monster bekommen eine funkelnde Aura
-            if (card.rarity != Rarity.Common)
+            // Entwickelte Kreaturen bekommen einen farbigen Schimmer
+            if (stage > 0) c.TintBase(Color.Lerp(Color.white, c.ElementColor, 0.25f));
+
+            // Seltene Kreaturen und Bosse funkeln
+            if (def.rarity >= Rarity.Selten || def.isBoss)
             {
-                Color rc = CardData.RarityColor(card.rarity) * (card.rarity == Rarity.Legendary ? 3f : 2.2f);
-                Fx.Aura(root.transform, rc, 0.55f + (int)card.rarity * 0.12f, c.Height);
+                Color rc = Look.RarityColor(def.rarity) * (def.rarity >= Rarity.Legendaer ? 3f : 2.2f);
+                if (def.isBoss) rc = new Color(3f, 0.6f, 0.3f);
+                Fx.Aura(root.transform, rc, 0.55f + (int)def.rarity * 0.1f, c.Height);
             }
             return c;
         }
 
-        void BuildPrimitiveBody()
+        void BuildPlaceholder(float size)
         {
-            float size = 0.7f + card.cost * 0.08f;
-            Height = size * 1.1f;
-            PrimitiveType type = card.shape == BodyShape.Sphere ? PrimitiveType.Sphere
-                               : card.shape == BodyShape.Cube ? PrimitiveType.Cube
-                               : PrimitiveType.Capsule;
-
-            var bodyGo = Prim(type, transform, new Vector3(0f, size * 0.5f, 0f), Vector3.one * size, card.color);
-            if (type == PrimitiveType.Capsule) bodyGo.transform.localScale = new Vector3(size, size * 0.5f, size);
-
-            float eyeY = size * 0.65f, eyeZ = size * 0.45f, eyeX = size * 0.2f, eyeSize = size * 0.28f;
-            foreach (float side in new[] { -1f, 1f })
-            {
-                Prim(PrimitiveType.Sphere, transform, new Vector3(eyeX * side, eyeY, eyeZ), Vector3.one * eyeSize, Color.white);
-                Prim(PrimitiveType.Sphere, transform, new Vector3(eyeX * side, eyeY, eyeZ + eyeSize * 0.35f), Vector3.one * eyeSize * 0.5f, new Color(0.1f, 0.1f, 0.12f));
-            }
-        }
-
-        static GameObject Prim(PrimitiveType type, Transform parent, Vector3 localPos, Vector3 scale, Color color)
-        {
-            var go = GameObject.CreatePrimitive(type);
-            var col = go.GetComponent<Collider>();
-            if (col != null) Destroy(col);
-            go.transform.SetParent(parent, false);
-            go.transform.localPosition = localPos;
-            go.transform.localScale = scale;
-            go.GetComponent<Renderer>().material.color = color;
-            return go;
+            Height = size;
+            var go = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            Destroy(go.GetComponent<Collider>());
+            go.name = "PLATZHALTER";
+            go.transform.SetParent(body, false);
+            go.transform.localPosition = new Vector3(0f, size * 0.5f, 0f);
+            go.transform.localScale = new Vector3(size * 0.6f, size * 0.5f, size * 0.6f);
+            go.GetComponent<Renderer>().material.color = ElementColor;
         }
 
         void CollectMaterials()
         {
             foreach (var r in GetComponentsInChildren<Renderer>())
+            {
+                if (r is ParticleSystemRenderer || r is TrailRenderer || r is LineRenderer) continue;
                 foreach (var m in r.materials)
                 {
                     if (!m.HasProperty("_BaseColor") && !m.HasProperty("_Color")) continue;
                     materials.Add(m);
                     baseColors.Add(m.color);
                 }
+            }
         }
 
-        void SetTint(Color tint, float amount)
+        void TintBase(Color tint)
+        {
+            for (int i = 0; i < materials.Count; i++)
+            {
+                baseColors[i] = baseColors[i] * tint;
+                materials[i].color = baseColors[i];
+            }
+        }
+
+        void SetFlash(Color tint, float amount)
         {
             for (int i = 0; i < materials.Count; i++)
                 if (materials[i] != null)
@@ -127,96 +130,276 @@ namespace Kesselwerk
 
         void Update()
         {
-            if (animating || hasModel) return;
+            if (busy || hasModel || IsDead) return;
             float y = Mathf.Sin(Time.time * 2.2f + bobSeed) * 0.06f;
-            transform.position = home + new Vector3(0f, y, 0f);
+            body.localPosition = new Vector3(0f, y, 0f);
+        }
+
+        public void FaceHome() => transform.rotation = homeRot;
+
+        IEnumerator TurnTo(Vector3 target, float time)
+        {
+            Vector3 d = target - transform.position;
+            d.y = 0f;
+            if (d.sqrMagnitude < 0.001f) yield break;
+            Quaternion from = transform.rotation, to = Quaternion.LookRotation(d);
+            for (float t = 0f; t < 1f; t += Time.deltaTime / time)
+            {
+                transform.rotation = Quaternion.Slerp(from, to, Mathf.SmoothStep(0f, 1f, t));
+                yield return null;
+            }
+            transform.rotation = to;
         }
 
         // ------------------------------------------------------------------
-        // Animationen
+        // Auftritt
         // ------------------------------------------------------------------
 
-        public IEnumerator SpawnAnim()
+        public IEnumerator SpawnAnim(float delay = 0f)
         {
-            animating = true;
-            transform.position = home;
-            Color rc = CardData.RarityColor(card.rarity);
-            Fx.Burst(home + Vector3.up * 0.2f, card.color * 2f, 40, 3.5f, 0.22f, 0.7f, -0.3f);
-            Fx.Ring(home + Vector3.up * 0.05f, card.color * 2.5f);
-            Fx.Pillar(home, (card.rarity == Rarity.Common ? card.color : rc) * 2.5f, Height, 40 + (int)card.rarity * 40);
-            if (card.rarity == Rarity.Legendary)
+            busy = true;
+            transform.localScale = Vector3.zero;
+            if (delay > 0f) yield return new WaitForSeconds(delay);
+            Color rc = Look.RarityColor(def.rarity);
+            Fx.Ring(home + Vector3.up * 0.05f, ElementColor * 2.5f);
+            Fx.Pillar(home, (def.rarity <= Rarity.Ungewoehnlich ? ElementColor : rc) * 2.5f, Height, 40 + (int)def.rarity * 30);
+            Fx.Burst(home + Vector3.up * 0.3f, ElementColor * 2f, 30, 3f, 0.2f, 0.6f, -0.3f);
+            if (def.rarity >= Rarity.Legendaer || def.isBoss)
             {
                 Fx.Ring(home + Vector3.up * 0.1f, rc * 3f);
                 Fx.Burst(home + Vector3.up * Height * 0.6f, rc * 3f, 90, 6f, 0.3f, 1f, 0.2f);
             }
-            float t = 0f;
-            while (t < 1f)
+            for (float t = 0f; t < 1f; t += Time.deltaTime / 0.4f)
             {
-                t += Time.deltaTime / 0.4f;
                 transform.localScale = Vector3.one * EaseOutBack(Mathf.Clamp01(t));
                 yield return null;
             }
             transform.localScale = Vector3.one;
-            animating = false;
+            busy = false;
         }
 
-        /// <summary>Dreht sich zum Ziel, springt hin und spielt die Angriffsanimation.</summary>
-        public IEnumerator LungeOut(Vector3 target)
+        // ------------------------------------------------------------------
+        // Kampf
+        // ------------------------------------------------------------------
+
+        /// <summary>Nahkampf: läuft zum Ziel, schlägt zu. onImpact wird beim Treffer aufgerufen.</summary>
+        public IEnumerator MeleeAttack(Creature target, System.Action onImpact, bool special = false)
         {
-            animating = true;
-            Vector3 flat = target - home;
-            flat.y = 0f;
-            Quaternion look = flat.sqrMagnitude > 0.001f ? Quaternion.LookRotation(flat) : homeRot;
-
-            // Zum Ziel drehen
-            float t = 0f;
-            Quaternion startRot = transform.rotation;
-            while (t < 1f)
-            {
-                t += Time.deltaTime / 0.15f;
-                transform.rotation = Quaternion.Slerp(startRot, look, Mathf.SmoothStep(0f, 1f, t));
-                yield return null;
-            }
-
-            float attackLen = anim != null ? anim.Play(MonsterAnimator.AttackKeys, false) : 0f;
+            busy = true;
+            yield return TurnTo(target.transform.position, 0.12f);
+            anim?.Play(MonsterAnimator.WalkKeys, true);
             StartTrail();
 
-            Vector3 end = Vector3.Lerp(home, target, hasModel ? 0.62f : 0.75f);
+            Vector3 dir = (target.transform.position - transform.position);
+            dir.y = 0f;
+            float reach = 0.55f + target.Height * 0.25f + Height * 0.2f;
+            Vector3 end = target.transform.position - dir.normalized * reach;
             end.y = home.y;
-            t = 0f;
-            while (t < 1f)
+            Vector3 start = transform.position;
+            for (float t = 0f; t < 1f; t += Time.deltaTime / 0.22f)
             {
-                t += Time.deltaTime / 0.28f;
                 float k = Mathf.Clamp01(t);
-                Vector3 p = Vector3.Lerp(home, end, k * k);
-                p.y += Mathf.Sin(k * Mathf.PI) * (hasModel ? 0.45f : 0.8f);
+                Vector3 p = Vector3.Lerp(start, end, k * k * (3f - 2f * k));
+                p.y += Mathf.Sin(k * Mathf.PI) * 0.35f;
                 transform.position = p;
                 yield return null;
             }
+            transform.position = end;
 
-            if (attackLen > 0f) yield return new WaitForSeconds(Mathf.Min(attackLen * 0.35f, 0.3f));
+            float len = anim != null ? anim.Play(special ? MonsterAnimator.SpecialKeys : MonsterAnimator.AttackKeys, false) : 0f;
+            yield return new WaitForSeconds(Mathf.Clamp(len * 0.35f, 0.1f, 0.22f));
+            onImpact?.Invoke();
+            yield return new WaitForSeconds(0.1f);
+            yield return ReturnHome();
         }
 
-        /// <summary>Zurück an den Platz und wieder zur Kamera drehen.</summary>
-        public IEnumerator LungeBack()
+        /// <summary>Fernkampf: Angriff im Stand, Geschoss fliegt zum Ziel.</summary>
+        public IEnumerator RangedAttack(Creature target, System.Action onImpact)
         {
-            Vector3 start = transform.position;
-            Quaternion startRot = transform.rotation;
-            float t = 0f;
-            while (t < 1f)
+            busy = true;
+            yield return TurnTo(target.transform.position, 0.12f);
+            float len = anim != null ? anim.Play(MonsterAnimator.AttackKeys, false) : 0f;
+            // kleiner Hüpfer nach vorn
+            Vector3 fwd = transform.forward * 0.25f;
+            for (float t = 0f; t < 1f; t += Time.deltaTime / 0.12f)
             {
-                t += Time.deltaTime / 0.35f;
+                transform.position = home + fwd * Mathf.Sin(Mathf.Clamp01(t) * Mathf.PI);
+                yield return null;
+            }
+            transform.position = home;
+            yield return Projectile(Center, target.Center, ElementColor, 0.22f);
+            onImpact?.Invoke();
+            if (len > 0.5f) yield return new WaitForSeconds(0.1f);
+            yield return TurnTo(transform.position + homeRot * Vector3.forward, 0.15f);
+            anim?.PlayIdle();
+            busy = false;
+        }
+
+        /// <summary>Spezialfähigkeit vorbereiten: Sprung, Leuchten, Elementwirbel.</summary>
+        public IEnumerator CastStart()
+        {
+            busy = true;
+            Color c = ElementColor;
+            Fx.Ring(transform.position + Vector3.up * 0.05f, c * 3f);
+            Fx.Pillar(transform.position, c * 2.5f, Height * 1.3f, 50);
+            anim?.Play(MonsterAnimator.SpecialKeys, false);
+            for (float t = 0f; t < 1f; t += Time.deltaTime / 0.35f)
+            {
+                float k = Mathf.Clamp01(t);
+                body.localPosition = new Vector3(0f, Mathf.Sin(k * Mathf.PI) * 0.6f, 0f);
+                body.localRotation = Quaternion.Euler(0f, k * 360f, 0f);
+                SetFlash(c, Mathf.Sin(k * Mathf.PI) * 0.6f);
+                yield return null;
+            }
+            body.localPosition = Vector3.zero;
+            body.localRotation = Quaternion.identity;
+            SetFlash(c, 0f);
+        }
+
+        public void CastEnd()
+        {
+            anim?.PlayIdle();
+            transform.rotation = homeRot;
+            busy = false;
+        }
+
+        IEnumerator ReturnHome()
+        {
+            anim?.Play(MonsterAnimator.WalkKeys, true);
+            Vector3 start = transform.position;
+            Quaternion r0 = transform.rotation;
+            for (float t = 0f; t < 1f; t += Time.deltaTime / 0.24f)
+            {
                 float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t));
                 transform.position = Vector3.Lerp(start, home, k);
-                transform.rotation = Quaternion.Slerp(startRot, homeRot, k);
+                transform.rotation = Quaternion.Slerp(r0, homeRot, k);
                 yield return null;
             }
             transform.position = home;
             transform.rotation = homeRot;
             StopTrail();
-            if (anim != null && !IsDead) anim.PlayIdle();
-            animating = false;
+            if (!IsDead) anim?.PlayIdle();
+            busy = false;
         }
+
+        public static IEnumerator Projectile(Vector3 from, Vector3 to, Color color, float time)
+        {
+            var go = new GameObject("Geschoss");
+            go.transform.position = from;
+            var tr = go.AddComponent<TrailRenderer>();
+            tr.sharedMaterial = Fx.AdditiveMaterial;
+            tr.time = 0.18f;
+            tr.widthMultiplier = 0.35f;
+            tr.widthCurve = AnimationCurve.Linear(0f, 1f, 1f, 0f);
+            var g = new Gradient();
+            g.SetKeys(new[] { new GradientColorKey(color * 3f, 0f), new GradientColorKey(color * 2f, 1f) },
+                      new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0f, 1f) });
+            tr.colorGradient = g;
+            for (float t = 0f; t < 1f; t += Time.deltaTime / time)
+            {
+                float k = Mathf.Clamp01(t);
+                go.transform.position = Vector3.Lerp(from, to, k) + Vector3.up * Mathf.Sin(k * Mathf.PI) * 0.8f;
+                yield return null;
+            }
+            go.transform.position = to;
+            Fx.Burst(to, color * 2.5f, 18, 3f, 0.15f, 0.35f, 0f);
+            Destroy(go, 0.3f);
+        }
+
+        /// <summary>Treffer: rot aufleuchten, zurückgestoßen werden.</summary>
+        public void Hit(Vector3 from, bool heavy)
+        {
+            if (IsDead) return;
+            StartCoroutine(HitRoutine(from, heavy));
+        }
+
+        IEnumerator HitRoutine(Vector3 from, bool heavy)
+        {
+            anim?.Play(MonsterAnimator.HitKeys, false);
+            Vector3 push = transform.position - from;
+            push.y = 0f;
+            push = push.sqrMagnitude > 0.001f ? push.normalized * (heavy ? 0.45f : 0.2f) : Vector3.zero;
+            for (float t = 0f; t < 1f; t += Time.deltaTime / 0.3f)
+            {
+                float k = Mathf.Clamp01(t);
+                body.localPosition = transform.InverseTransformVector(push) * Mathf.Sin(k * Mathf.PI) +
+                                     new Vector3(Random.Range(-1f, 1f), 0f, Random.Range(-1f, 1f)) * (1f - k) * 0.05f;
+                SetFlash(new Color(1f, 0.25f, 0.2f), 1f - k);
+                yield return null;
+            }
+            body.localPosition = Vector3.zero;
+            SetFlash(Color.white, 0f);
+            if (!IsDead && !busy) anim?.PlayIdle();
+        }
+
+        public void Glow(Color c)
+        {
+            if (IsDead) return;
+            StartCoroutine(GlowRoutine(c));
+        }
+
+        IEnumerator GlowRoutine(Color c)
+        {
+            for (float t = 0f; t < 1f; t += Time.deltaTime / 0.5f)
+            {
+                SetFlash(c, (1f - Mathf.Clamp01(t)) * 0.7f);
+                yield return null;
+            }
+            SetFlash(Color.white, 0f);
+        }
+
+        public void Die()
+        {
+            if (IsDead) return;
+            IsDead = true;
+            StartCoroutine(DieRoutine());
+        }
+
+        IEnumerator DieRoutine()
+        {
+            StopTrail();
+            float len = anim != null ? anim.Play(MonsterAnimator.DeathKeys, false) : 0f;
+            yield return new WaitForSeconds(Mathf.Clamp(len, 0.3f, 1.0f));
+            Fx.Burst(transform.position + Vector3.up * 0.4f, new Color(0.8f, 0.8f, 0.9f), 30, 2.5f, 0.3f, 0.9f, -0.2f);
+            Vector3 s0 = transform.localScale;
+            for (float t = 0f; t < 1f; t += Time.deltaTime / 0.35f)
+            {
+                transform.localScale = s0 * (1f - Mathf.Clamp01(t));
+                yield return null;
+            }
+            gameObject.SetActive(false);
+        }
+
+        /// <summary>Siegesfreude: hüpfen und jubeln.</summary>
+        public IEnumerator Victory()
+        {
+            if (IsDead) yield break;
+            busy = true;
+            anim?.Play(MonsterAnimator.VictoryKeys, true);
+            float seed = bobSeed;
+            for (float t = 0f; t < 2.5f; t += Time.deltaTime)
+            {
+                body.localPosition = new Vector3(0f, Mathf.Abs(Mathf.Sin((t + seed) * 6f)) * 0.35f, 0f);
+                yield return null;
+            }
+            body.localPosition = Vector3.zero;
+        }
+
+        /// <summary>Niederlage: sinkt traurig zusammen.</summary>
+        public IEnumerator Defeat()
+        {
+            if (IsDead) yield break;
+            anim?.Play(MonsterAnimator.HitKeys, false);
+            for (float t = 0f; t < 1f; t += Time.deltaTime / 0.8f)
+            {
+                body.localScale = new Vector3(1f, 1f - Mathf.Clamp01(t) * 0.25f, 1f);
+                yield return null;
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Spur beim Laufen
+        // ------------------------------------------------------------------
 
         GameObject trailGo;
 
@@ -228,13 +411,13 @@ namespace Kesselwerk
             trailGo.transform.localPosition = new Vector3(0f, Height * 0.5f, 0f);
             var tr = trailGo.AddComponent<TrailRenderer>();
             tr.sharedMaterial = Fx.AdditiveMaterial;
-            tr.time = 0.22f;
-            tr.widthMultiplier = Height * 0.55f;
+            tr.time = 0.2f;
+            tr.widthMultiplier = Height * 0.5f;
             tr.widthCurve = AnimationCurve.Linear(0f, 1f, 1f, 0f);
-            Color c = (card.rarity == Rarity.Common ? card.color : CardData.RarityColor(card.rarity)) * 2f;
+            Color c = (def.rarity <= Rarity.Ungewoehnlich ? ElementColor : Look.RarityColor(def.rarity)) * 2f;
             var g = new Gradient();
             g.SetKeys(new[] { new GradientColorKey(c, 0f), new GradientColorKey(c, 1f) },
-                      new[] { new GradientAlphaKey(0.7f, 0f), new GradientAlphaKey(0f, 1f) });
+                      new[] { new GradientAlphaKey(0.6f, 0f), new GradientAlphaKey(0f, 1f) });
             tr.colorGradient = g;
             tr.minVertexDistance = 0.05f;
         }
@@ -246,60 +429,6 @@ namespace Kesselwerk
             if (tr != null) tr.emitting = false;
             Destroy(trailGo, 0.4f);
             trailGo = null;
-        }
-
-        public IEnumerator HitFlash()
-        {
-            bool wasAnimating = animating;
-            animating = true;
-            float hitLen = anim != null ? anim.Play(MonsterAnimator.HitKeys, false) : 0f;
-
-            float t = 0f;
-            while (t < 1f)
-            {
-                t += Time.deltaTime / 0.35f;
-                float shake = (1f - t) * 0.12f;
-                transform.position = home + new Vector3(Random.Range(-shake, shake), 0f, Random.Range(-shake, shake));
-                SetTint(new Color(1f, 0.3f, 0.3f), 1f - Mathf.Clamp01(t));
-                yield return null;
-            }
-            SetTint(Color.white, 0f);
-            transform.position = home;
-
-            if (hitLen > 0.35f) yield return new WaitForSeconds(hitLen - 0.35f);
-            if (anim != null && !IsDead) anim.PlayIdle();
-            animating = wasAnimating;
-        }
-
-        public IEnumerator HealFlash()
-        {
-            Fx.Burst(transform.position + Vector3.up * Height * 0.5f, new Color(0.3f, 2f, 0.6f), 20, 2f, 0.15f, 0.8f, -0.5f);
-            float t = 0f;
-            while (t < 1f)
-            {
-                t += Time.deltaTime / 0.5f;
-                SetTint(new Color(0.5f, 1f, 0.6f), 1f - Mathf.Clamp01(t));
-                yield return null;
-            }
-            SetTint(Color.white, 0f);
-        }
-
-        public IEnumerator Die()
-        {
-            animating = true;
-            float deathLen = anim != null ? anim.Play(MonsterAnimator.DeathKeys, false) : 0f;
-            if (deathLen > 0f) yield return new WaitForSeconds(Mathf.Min(deathLen, 1.3f));
-
-            Fx.Burst(transform.position + Vector3.up * 0.4f, new Color(0.8f, 0.8f, 0.9f), 30, 2.5f, 0.3f, 0.9f, -0.2f);
-            float t = 0f;
-            Vector3 startScale = transform.localScale;
-            while (t < 1f)
-            {
-                t += Time.deltaTime / 0.35f;
-                transform.localScale = startScale * (1f - Mathf.Clamp01(t));
-                yield return null;
-            }
-            Destroy(gameObject);
         }
 
         static float EaseOutBack(float x)

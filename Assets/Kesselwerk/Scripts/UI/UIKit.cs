@@ -181,8 +181,7 @@ namespace Kesselwerk
             hi.rectTransform.localScale = new Vector3(1f, -1f, 1f);
             var t = Text(outer.transform, "Wert", value, size * 0.55f, Color.white, TextAlignmentOptions.Center, true);
             Stretch(t.rectTransform);
-            t.outlineWidth = 0.25f;
-            t.outlineColor = new Color32(0, 0, 0, 200);
+            UX.Outline(t, 0.25f);
             return t;
         }
     }

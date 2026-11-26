@@ -11,7 +11,7 @@ namespace Kesselwerk
     /// </summary>
     public static class ArenaBuilder
     {
-        public const int SlotCount = 4;
+        public const int SlotCount = 6;
 
         /// <summary>Tiefenunschärfe – wird von der Kamera passend zum Abstand eingestellt.</summary>
         public static DepthOfField Dof;
@@ -22,12 +22,19 @@ namespace Kesselwerk
             Dof.gaussianStart.Override(distance + 8f);
             Dof.gaussianEnd.Override(distance + 35f);
         }
-        const float SlotSpacing = 2.25f;
-        const float RowZ = 1.65f;
+        const float ColSpacing = 2.5f;
+        const float FrontZ = 1.7f;
+        const float RowGap = 2.2f;
 
-        public static Vector3 SlotPos(bool isPlayer, int i) =>
-            new Vector3((i - (SlotCount - 1) * 0.5f) * SlotSpacing, 0f, isPlayer ? -RowZ : RowZ);
+        /// <summary>Formation: Feld 0–2 vordere Reihe (zur Mitte), 3–5 hintere Reihe.</summary>
+        public static Vector3 SlotPos(bool isPlayer, int slot)
+        {
+            int col = slot % 3, row = slot / 3;
+            float z = FrontZ + row * RowGap;
+            return new Vector3((col - 1) * ColSpacing, 0f, isPlayer ? -z : z);
+        }
 
+        /// <summary>Mitte der Lichtung (Menü-Kessel).</summary>
         public static Vector3 FacePos(bool isPlayer) =>
             new Vector3(0f, 0.6f, isPlayer ? -4.1f : 4.1f);
 
@@ -150,7 +157,7 @@ namespace Kesselwerk
 
         static void Block(Vector3 p, float radius) => blocked.Add(new Vector3(p.x, radius, p.z));
 
-        public static void BuildArena()
+        public static void BuildArena(bool battle = true)
         {
             var root = new GameObject("Arena").transform;
             blocked.Clear();
@@ -169,28 +176,36 @@ namespace Kesselwerk
             if (gm.HasProperty("_Smoothness")) gm.SetFloat("_Smoothness", 0f);
 
 
-            // Plätze und Kessel freihalten
-            for (int i = 0; i < SlotCount; i++) { Block(SlotPos(true, i), 1.05f); Block(SlotPos(false, i), 1.05f); }
-            Block(FacePos(true), 1.5f);
-            Block(FacePos(false), 1.5f);
-
-            // Steinpfad zwischen den Kesseln und quer durch die Mitte
-            for (float z = -3.0f; z <= 3.01f; z += 0.85f)
+            if (battle)
             {
-                var p = new Vector3(Random.Range(-0.15f, 0.15f), 0f, z);
-                NatureKit.Spawn(Pick("RockPath_Round_Small_1", "RockPath_Round_Small_2", "RockPath_Round_Small_3"), root, p, 0.75f);
+                // Formation freihalten und mit leuchtenden Rune-Ringen markieren
+                for (int i = 0; i < SlotCount; i++) { Block(SlotPos(true, i), 1.1f); Block(SlotPos(false, i), 1.1f); }
+                for (float x = -4f; x <= 4.01f; x += 0.5f) Block(new Vector3(x, 0f, 0f), 0.8f);
+                for (int i = 0; i < SlotCount; i++)
+                {
+                    SlotPad(root, SlotPos(true, i), new Color(0.35f, 0.75f, 1f));
+                    SlotPad(root, SlotPos(false, i), new Color(1f, 0.55f, 0.35f));
+                }
+                // Mittellinie aus Steinen
+                for (float x = -4.5f; x <= 4.51f; x += 0.9f)
+                {
+                    var p = new Vector3(x, 0f, Random.Range(-0.1f, 0.1f));
+                    NatureKit.Spawn(Pick("RockPath_Round_Small_1", "RockPath_Round_Small_2", "RockPath_Round_Small_3"), root, p, 0.6f);
+                }
             }
-
-            // Plätze für Monster: leuchtende Rune-Ringe
-            for (int i = 0; i < SlotCount; i++)
+            else
             {
-                SlotPad(root, SlotPos(true, i), new Color(0.35f, 0.75f, 1f));
-                SlotPad(root, SlotPos(false, i), new Color(1f, 0.55f, 0.35f));
+                // Menü: ein Kessel in der Mitte, Pfad dorthin
+                Block(Vector3.zero, 1.8f);
+                for (int i = 0; i < 4; i++) Block(new Vector3(-1.8f + i * 1.2f, 0f, 1.4f), 1f);
+                Kessel(root, new Vector3(0f, 0.6f, 2.6f), new Color(1f, 0.6f, 0.25f));
+                Block(new Vector3(0f, 0f, 2.6f), 1.6f);
+                for (float z = -4.0f; z <= 1.0f; z += 0.85f)
+                {
+                    var p = new Vector3(Random.Range(-0.15f, 0.15f), 0f, z);
+                    NatureKit.Spawn(Pick("RockPath_Round_Small_1", "RockPath_Round_Small_2", "RockPath_Round_Small_3"), root, p, 0.75f);
+                }
             }
-
-            // Kessel (Lebenspunkte der Spieler)
-            Kessel(root, FacePos(true), new Color(0.35f, 0.75f, 1f));
-            Kessel(root, FacePos(false), new Color(1f, 0.45f, 0.25f));
 
             // Baumring um die Lichtung (vorne zur Kamera hin frei lassen)
             string[] trees = { "CommonTree_1", "CommonTree_2", "CommonTree_3", "CommonTree_4", "CommonTree_5", "Pine_1", "Pine_2", "Pine_3", "TwistedTree_1", "TwistedTree_2" };

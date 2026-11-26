@@ -12,15 +12,16 @@ namespace Kesselwerk
     public static class MonsterModel
     {
         static readonly Dictionary<string, Texture> portraitCache = new Dictionary<string, Texture>();
+        static int portraitCounter;
 
-        public static GameObject Load(CardData card, Transform parent, float targetHeight,
+        public static GameObject Load(string model, Transform parent, float targetHeight,
                                       out Animator animator, out AnimationClip[] clips)
         {
             animator = null;
             clips = null;
-            if (card == null || string.IsNullOrEmpty(card.model)) return null;
+            if (string.IsNullOrEmpty(model)) return null;
 
-            var prefab = Resources.Load<GameObject>("Monsters/" + card.model);
+            var prefab = Resources.Load<GameObject>("Monsters/" + model);
             if (prefab == null) return null;
 
             var inst = Object.Instantiate(prefab, parent);
@@ -29,7 +30,7 @@ namespace Kesselwerk
             inst.transform.localRotation = Quaternion.identity;
 
             // Textur sicher zuweisen und Material etwas "weicher" machen
-            var tex = Resources.Load<Texture2D>("Monsters/Textures/" + card.model + "_Texture");
+            var tex = Resources.Load<Texture2D>("Monsters/Textures/" + model + "_Texture");
             foreach (var r in inst.GetComponentsInChildren<Renderer>())
             {
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
@@ -57,7 +58,7 @@ namespace Kesselwerk
             animator.applyRootMotion = false;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
 
-            clips = Resources.LoadAll<AnimationClip>("Monsters/" + card.model);
+            clips = Resources.LoadAll<AnimationClip>("Monsters/" + model);
             return inst;
         }
 
@@ -86,18 +87,21 @@ namespace Kesselwerk
         }
 
         /// <summary>Rendert ein Kartenbild des Monsters (einmal pro Karte, danach aus dem Cache).</summary>
-        public static Texture Portrait(CardData card)
+        public static Texture Portrait(Kesselwerk.Core.CreatureDef def)
         {
-            if (card == null) return null;
-            if (portraitCache.TryGetValue(card.id, out var cached) && cached != null) return cached;
+            if (def == null) return null;
+            if (portraitCache.TryGetValue(def.id, out var cached) && cached != null) return cached;
+            Color elemColor = Look.ElementColor(def.element);
 
+            // Jedes Porträt an einem eigenen Ort, damit sich Modelle im selben Bild nie überlagern
+            portraitCounter++;
             var stage = new GameObject("PortraitStage");
-            stage.transform.position = new Vector3(500f, 500f, 500f);
+            stage.transform.position = new Vector3(500f + (portraitCounter % 64) * 40f, 500f, 500f);
             var holder = new GameObject("Holder");
             holder.transform.SetParent(stage.transform, false);
             holder.transform.localRotation = Quaternion.Euler(0f, 200f, 0f); // leicht schräg zur Kamera
 
-            var model = Load(card, holder.transform, 1.5f, out _, out var clips);
+            var model = Load(def.model, holder.transform, 1.5f, out _, out var clips);
             Texture result = null;
 
             if (model != null)
@@ -110,7 +114,7 @@ namespace Kesselwerk
                 var cam = camGo.AddComponent<Camera>();
                 cam.enabled = false;
                 cam.clearFlags = CameraClearFlags.SolidColor;
-                cam.backgroundColor = Color.Lerp(card.color, new Color(0.16f, 0.13f, 0.18f), 0.4f);
+                cam.backgroundColor = Color.Lerp(elemColor, new Color(0.16f, 0.13f, 0.18f), 0.4f);
                 cam.fieldOfView = 30f;
                 cam.nearClipPlane = 0.05f;
                 cam.farClipPlane = 50f;
@@ -140,7 +144,7 @@ namespace Kesselwerk
                 rimGo.transform.position = look + new Vector3(0.5f * h, 0.8f * h, dist * 0.6f);
                 var rim = rimGo.AddComponent<Light>();
                 rim.type = LightType.Point;
-                rim.color = Color.Lerp(card.color, Color.white, 0.4f);
+                rim.color = Color.Lerp(elemColor, Color.white, 0.4f);
                 rim.intensity = 5f * h * h;
                 rim.range = dist * 3f;
 
@@ -155,8 +159,8 @@ namespace Kesselwerk
                 result = rt;
             }
 
-            Object.Destroy(stage);
-            portraitCache[card.id] = result;
+            Object.DestroyImmediate(stage);
+            portraitCache[def.id] = result;
             return result;
         }
     }

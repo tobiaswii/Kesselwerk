@@ -1,805 +1,1068 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
+using Kesselwerk.Core;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
 namespace Kesselwerk
 {
     /// <summary>
-    /// Hauptmenü-Oberfläche: Start, Shop (Kartenpacks), Sammlung (Herstellen, Deck bearbeiten).
+    /// Menüs: Start, Kampagne, Beschwörung, Sammlung (mit 3D-Vorschau), Team, Einstellungen.
+    /// Alles im Code aufgebaut, passt sich an Hoch- und Querformat an.
     /// </summary>
     public class MenuUI : MonoBehaviour
     {
-        enum Page { Home, Shop, Collection }
-
-        static readonly Color Gold = new Color(0.95f, 0.8f, 0.45f);
-        static readonly Color Orange = new Color(0.88f, 0.55f, 0.12f);
-        static readonly Color Blue = new Color(0.22f, 0.5f, 0.9f);
-        static readonly Color Green = new Color(0.22f, 0.62f, 0.3f);
-        static readonly Color Grey = new Color(0.35f, 0.33f, 0.4f);
-
         MenuManager mm;
-        Camera cam;
+        RectTransform root, page, overlay, topBar, toastRt;
+        TextMeshProUGUI goldText, crystalText, potionText, stoneText, toastText;
+        CanvasGroup toastGroup;
+        Button backButton;
+        MenuPage current;
         Canvas canvas;
         CanvasScaler scaler;
-        RectTransform root, topBar, pageRoot, overlay, toastRt;
-        TextMeshProUGUI goldText, dustText, toastText;
-        CanvasGroup toastGroup;
-        Coroutine toastRoutine;
-        Button backButton;
-        Page page = Page.Home;
-        bool lastPortrait;
-        int lastW, lastH;
 
-        PlayerProfile P => PlayerProfile.Current;
-        bool IsPortrait => Screen.height >= Screen.width;
+        int campaignRegion;
+        int selectedStage = -1;
+        int selectedSlot = -1;
+        Element? filter;
+        CreatureDef detailDef;
 
-        // ------------------------------------------------------------------
-        // Aufbau
-        // ------------------------------------------------------------------
+        static PlayerData D => Game.Data;
+        static bool P => UX.Portrait;
 
-        public void Init(MenuManager manager, Camera camera)
+        public static MenuUI Instance { get; private set; }
+
+        public void Init(MenuManager manager)
         {
+            Instance = this;
             mm = manager;
-            cam = camera;
+            root = UX.CreateCanvas("Kesselwerk Menü", 10, out canvas, out scaler);
+            canvas.GetComponent<OrientationScaler>().Changed += () => StartCoroutine(RebuildNextFrame());
 
-            if (FindFirstObjectByType<EventSystem>() == null)
-            {
-                var es = new GameObject("EventSystem");
-                es.AddComponent<EventSystem>();
-                es.AddComponent<InputSystemUIInputModule>().AssignDefaultActions();
-            }
-
-            var cgo = new GameObject("Kesselwerk Menü");
-            canvas = cgo.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 10;
-            scaler = cgo.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-            cgo.AddComponent<GraphicRaycaster>();
-            root = (RectTransform)cgo.transform;
-
-            pageRoot = UIKit.Rect("Seite", root);
-            UIKit.Stretch(pageRoot);
-
+            page = UIKit.Rect("Seite", root);
+            UIKit.Stretch(page, 0, 0, 0, 150);
             BuildTopBar();
-            BuildToast();
-
             overlay = UIKit.Rect("Overlay", root);
             UIKit.Stretch(overlay);
             overlay.gameObject.SetActive(false);
+            BuildToast();
 
-            ApplyOrientation(true);
+            for (int r = Campaign.RegionCount - 1; r >= 0; r--)
+                if (Campaign.IsUnlocked(D, r, 0)) { campaignRegion = r; break; }
+            Show(GameFlow.StartPage);
         }
+
+        IEnumerator RebuildNextFrame()
+        {
+            yield return null;
+            Show(current);
+            if (detailDef != null && overlay.gameObject.activeSelf) ShowDetail(detailDef);
+        }
+
+        // ------------------------------------------------------------------
+        // Rahmen: Kopfzeile, Hinweise
+        // ------------------------------------------------------------------
 
         void BuildTopBar()
         {
-            topBar = UIKit.Rect("ObereLeiste", root);
-            var bg = UIKit.Img(topBar, "Hintergrund", UIKit.Gradient, new Color(0.05f, 0.04f, 0.08f, 0.85f));
-            UIKit.Stretch(bg.rectTransform, 0, -60, 0, 0);
+            topBar = UIKit.Rect("Kopfzeile", root);
+            topBar.anchorMin = new Vector2(0f, 1f);
+            topBar.anchorMax = new Vector2(1f, 1f);
+            topBar.pivot = new Vector2(0.5f, 1f);
+            topBar.sizeDelta = new Vector2(0f, 140f);
+            var bg = UIKit.Img(topBar, "Hintergrund", UIKit.Gradient, new Color(0.02f, 0.02f, 0.05f, 0.7f));
+            UIKit.Stretch(bg.rectTransform, 0, -30, 0, 0);
             bg.rectTransform.localScale = new Vector3(1f, -1f, 1f);
 
-            var coin = UIKit.Badge(topBar, "Gold", new Color(0.95f, 0.72f, 0.15f), 70f, "G");
-            var coinRt = (RectTransform)coin.transform.parent;
-            coinRt.anchorMin = coinRt.anchorMax = new Vector2(0f, 0.5f);
-            coinRt.anchoredPosition = new Vector2(60f, 0f);
-            goldText = UIKit.Text(topBar, "GoldWert", "0", 42f, Color.white, TextAlignmentOptions.MidlineLeft, true);
-            goldText.rectTransform.anchorMin = goldText.rectTransform.anchorMax = new Vector2(0f, 0.5f);
-            goldText.rectTransform.pivot = new Vector2(0f, 0.5f);
-            goldText.rectTransform.anchoredPosition = new Vector2(105f, 0f);
-            goldText.rectTransform.sizeDelta = new Vector2(200f, 60f);
+            backButton = UIKit.Button(topBar, "Zurueck", "‹ Zurück", UX.Grey, () => { Sound.Play("klick"); mm.HidePreview(); Show(MenuPage.Home); }, 34f);
+            UIKit.Place((RectTransform)backButton.transform, new Vector2(0f, 0.5f), new Vector2(120f, 0f), new Vector2(210f, 90f));
 
-            var dust = UIKit.Badge(topBar, "Staub", new Color(0.65f, 0.35f, 0.95f), 70f, "S");
-            var dustRt = (RectTransform)dust.transform.parent;
-            dustRt.anchorMin = dustRt.anchorMax = new Vector2(0f, 0.5f);
-            dustRt.anchoredPosition = new Vector2(330f, 0f);
-            dustText = UIKit.Text(topBar, "StaubWert", "0", 42f, Color.white, TextAlignmentOptions.MidlineLeft, true);
-            dustText.rectTransform.anchorMin = dustText.rectTransform.anchorMax = new Vector2(0f, 0.5f);
-            dustText.rectTransform.pivot = new Vector2(0f, 0.5f);
-            dustText.rectTransform.anchoredPosition = new Vector2(375f, 0f);
-            dustText.rectTransform.sizeDelta = new Vector2(200f, 60f);
+            var row = UIKit.Rect("Waehrungen", topBar);
+            row.anchorMin = new Vector2(1f, 0.5f);
+            row.anchorMax = new Vector2(1f, 0.5f);
+            row.pivot = new Vector2(1f, 0.5f);
+            row.anchoredPosition = new Vector2(-14f, 0f);
+            row.sizeDelta = new Vector2(760f, 80f);
+            goldText = Currency(row, 0, "Gold", new Color(1f, 0.8f, 0.25f));
+            crystalText = Currency(row, 1, "Kristalle", new Color(0.75f, 0.5f, 1f));
+            potionText = Currency(row, 2, "Tränke", new Color(0.4f, 0.95f, 0.6f));
+            stoneText = Currency(row, 3, "Steine", new Color(1f, 0.6f, 0.35f));
+            RefreshTop();
+        }
 
-            backButton = UIKit.Button(topBar, "Zurueck", "Zurück", Grey, () => ShowPage(Page.Home), 34f);
-            var bRt = (RectTransform)backButton.transform;
-            bRt.anchorMin = bRt.anchorMax = new Vector2(1f, 0.5f);
-            bRt.pivot = new Vector2(1f, 0.5f);
-            bRt.anchoredPosition = new Vector2(-24f, 0f);
-            bRt.sizeDelta = new Vector2(220f, 84f);
+        TextMeshProUGUI Currency(RectTransform row, int i, string name, Color c)
+        {
+            var bg = UIKit.Img(row, name, UIKit.Rounded, new Color(0f, 0f, 0f, 0.55f));
+            bg.rectTransform.anchorMin = bg.rectTransform.anchorMax = new Vector2(0f, 0.5f);
+            bg.rectTransform.pivot = new Vector2(0f, 0.5f);
+            bg.rectTransform.anchoredPosition = new Vector2(i * 190f, 0f);
+            bg.rectTransform.sizeDelta = new Vector2(180f, 66f);
+            var gem = UIKit.Img(bg.transform, "Symbol", UIKit.Rounded, c);
+            gem.rectTransform.anchorMin = gem.rectTransform.anchorMax = new Vector2(0f, 0.5f);
+            gem.rectTransform.anchoredPosition = new Vector2(30f, 0f);
+            gem.rectTransform.sizeDelta = new Vector2(30f, 30f);
+            gem.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+            var t = UIKit.Text(bg.transform, "Wert", "0", 30f, Color.white, TextAlignmentOptions.MidlineLeft, true);
+            t.rectTransform.anchorMin = new Vector2(0f, 0f);
+            t.rectTransform.anchorMax = new Vector2(1f, 1f);
+            t.rectTransform.offsetMin = new Vector2(56f, 0f);
+            t.rectTransform.offsetMax = new Vector2(-8f, 0f);
+            t.enableAutoSizing = true;
+            t.fontSizeMin = 16f;
+            t.fontSizeMax = 30f;
+            var lbl = UIKit.Text(bg.transform, "Name", name, 14f, new Color(1f, 1f, 1f, 0.55f), TextAlignmentOptions.BottomRight);
+            UIKit.Stretch(lbl.rectTransform, 0, 2, 10, 0);
+            return t;
+        }
+
+        void RefreshTop()
+        {
+            goldText.text = D.gold.ToString("N0");
+            crystalText.text = D.crystals.ToString("N0");
+            potionText.text = D.potions.ToString();
+            stoneText.text = D.evoStones.ToString();
         }
 
         void BuildToast()
         {
             toastRt = UIKit.Rect("Hinweis", root);
-            UIKit.Place(toastRt, new Vector2(0.5f, 0.55f), Vector2.zero, new Vector2(860f, 120f));
-            var bg = UIKit.Img(toastRt, "Hintergrund", UIKit.Rounded, new Color(Gold.r, Gold.g, Gold.b, 0.95f));
-            UIKit.Stretch(bg.rectTransform);
-            var inner = UIKit.Img(toastRt, "Innen", UIKit.Rounded, new Color(0.12f, 0.1f, 0.16f));
-            UIKit.Stretch(inner.rectTransform, 4, 4, 4, 4);
-            toastText = UIKit.Text(toastRt, "Text", "", 42f, Color.white, TextAlignmentOptions.Center, true);
-            UIKit.Stretch(toastText.rectTransform, 20, 6, 20, 6);
+            UIKit.Place(toastRt, new Vector2(0.5f, 0.86f), Vector2.zero, new Vector2(960f, 100f));
+            var bg = UIKit.Img(toastRt, "Hintergrund", UIKit.RoundedSoft, new Color(0.05f, 0.04f, 0.08f, 0.92f));
+            UIKit.Stretch(bg.rectTransform, -16, -10, -16, -10);
+            toastText = UIKit.Text(toastRt, "Text", "", 32f, Color.white, TextAlignmentOptions.Center, true);
+            UIKit.Stretch(toastText.rectTransform, 12, 0, 12, 0);
             toastText.enableAutoSizing = true;
-            toastText.fontSizeMin = 20f;
-            toastText.fontSizeMax = 42f;
+            toastText.fontSizeMin = 16f;
+            toastText.fontSizeMax = 32f;
             toastGroup = toastRt.gameObject.AddComponent<CanvasGroup>();
             toastGroup.alpha = 0f;
             toastGroup.blocksRaycasts = false;
         }
 
-        void Toast(string text)
+        Coroutine toastCo;
+
+        public void Toast(string text)
         {
-            if (toastRoutine != null) StopCoroutine(toastRoutine);
-            toastRoutine = StartCoroutine(ToastRoutine(text));
+            if (toastCo != null) StopCoroutine(toastCo);
+            toastCo = StartCoroutine(ToastRoutine(text));
         }
 
         IEnumerator ToastRoutine(string text)
         {
             toastRt.SetAsLastSibling();
             toastText.text = text;
+            for (float t = 0f; t < 1f; t += Time.deltaTime / 0.2f) { toastGroup.alpha = t; yield return null; }
             toastGroup.alpha = 1f;
-            yield return new WaitForSeconds(1.6f);
-            float t = 0f;
-            while (t < 1f) { t += Time.deltaTime / 0.3f; toastGroup.alpha = 1f - t; yield return null; }
+            yield return new WaitForSeconds(2.4f);
+            for (float t = 0f; t < 1f; t += Time.deltaTime / 0.4f) { toastGroup.alpha = 1f - t; yield return null; }
             toastGroup.alpha = 0f;
         }
 
-        void ApplyOrientation(bool force)
-        {
-            bool portrait = IsPortrait;
-            if (!force && portrait == lastPortrait && Screen.width == lastW && Screen.height == lastH) return;
-            lastPortrait = portrait;
-            lastW = Screen.width;
-            lastH = Screen.height;
-            scaler.referenceResolution = portrait ? new Vector2(1080f, 1920f) : new Vector2(1920f, 1080f);
-            scaler.matchWidthOrHeight = portrait ? 0f : 1f;
-            UIKit.Anchor(topBar, 0f, 1f - BattleUI.TopFrac, 1f, 1f);
-            CloseOverlay();
-            ShowPage(page);
-        }
+        // ------------------------------------------------------------------
+        // Seiten
+        // ------------------------------------------------------------------
 
-        void LateUpdate()
+        public void Show(MenuPage p)
         {
-            ApplyOrientation(false);
-            goldText.text = P.gold.ToString();
-            dustText.text = P.dust.ToString();
-        }
-
-        void ShowPage(Page p)
-        {
-            page = p;
-            for (int i = pageRoot.childCount - 1; i >= 0; i--) Destroy(pageRoot.GetChild(i).gameObject);
-            backButton.gameObject.SetActive(p != Page.Home);
-            Canvas.ForceUpdateCanvases();
+            current = p;
+            page.gameObject.SetActive(true);
+            UX.Clear(page);
+            if (p != MenuPage.Collection) { overlay.gameObject.SetActive(false); detailDef = null; mm.HidePreview(); }
+            backButton.gameObject.SetActive(p != MenuPage.Home);
+            RefreshTop();
             switch (p)
             {
-                case Page.Home: BuildHome(); break;
-                case Page.Shop: BuildShop(); break;
-                case Page.Collection: BuildCollection(); break;
+                case MenuPage.Home: BuildHome(); break;
+                case MenuPage.Campaign: BuildCampaign(); break;
+                case MenuPage.Summon: BuildSummon(); break;
+                case MenuPage.Collection: BuildCollection(); break;
+                case MenuPage.Team: BuildTeam(); break;
+                case MenuPage.Settings: BuildSettings(); break;
             }
         }
 
-        RectTransform PageArea()
+        RectTransform Area(float xMin, float yMin, float xMax, float yMax)
         {
-            var area = UIKit.Rect("Bereich", pageRoot);
-            UIKit.Anchor(area, 0f, 0f, 1f, 1f - BattleUI.TopFrac);
-            return area;
+            var a = UIKit.Rect("Bereich", page);
+            UIKit.Anchor(a, xMin, yMin, xMax, yMax);
+            a.offsetMin = a.offsetMax = Vector2.zero;
+            return a;
         }
 
-        static Image Panel(RectTransform parent, string name)
+        TextMeshProUGUI Heading(Transform parent, string text, float size = 64f)
         {
-            var shadow = UIKit.Img(parent, name + "_Schatten", UIKit.RoundedSoft, new Color(0f, 0f, 0f, 0.5f));
-            var frame = UIKit.Img(parent, name, UIKit.Rounded, new Color(Gold.r, Gold.g, Gold.b, 0.9f));
-            var inner = UIKit.Img(frame.transform, "Innen", UIKit.Rounded, new Color(0.08f, 0.07f, 0.11f, 0.9f));
-            UIKit.Stretch(inner.rectTransform, 4, 4, 4, 4);
-            shadow.rectTransform.SetParent(frame.transform, false);
-            shadow.rectTransform.SetAsFirstSibling();
-            UIKit.Stretch(shadow.rectTransform, -16, -22, -16, -10);
-            return frame;
+            var t = UIKit.Text(parent, "Ueberschrift", text, size, Color.white, TextAlignmentOptions.Top, true);
+            t.rectTransform.anchorMin = new Vector2(0f, 1f);
+            t.rectTransform.anchorMax = new Vector2(1f, 1f);
+            t.rectTransform.pivot = new Vector2(0.5f, 1f);
+            t.rectTransform.sizeDelta = new Vector2(0f, size * 1.3f);
+            UX.Outline(t, 0.25f);
+            return t;
         }
 
-        // ------------------------------------------------------------------
-        // Startseite
-        // ------------------------------------------------------------------
+        Button Btn(Transform parent, string label, Color c, UnityEngine.Events.UnityAction a, float font = 40f)
+        {
+            return UIKit.Button(parent, label, label, c, () => { Sound.Play("klick"); a(); }, font);
+        }
+
+        // ---------------- Start ----------------
 
         void BuildHome()
         {
-            var area = PageArea();
-            bool portrait = IsPortrait;
+            var title = UIKit.Rect("Titel", page);
+            if (P) UIKit.Anchor(title, 0f, 0.74f, 1f, 0.95f); else UIKit.Anchor(title, 0f, 0.62f, 0.55f, 0.95f);
+            title.offsetMin = title.offsetMax = Vector2.zero;
+            var t = UIKit.Text(title, "Logo", "KESSELWERK", 120f, UX.Gold, TextAlignmentOptions.Center, true);
+            UIKit.Stretch(t.rectTransform, 0, 60, 0, 0);
+            t.enableAutoSizing = true; t.fontSizeMin = 40; t.fontSizeMax = 130;
+            UX.Outline(t, 0.3f);
+            var sub = UIKit.Text(title, "Untertitel", "Monster sammeln · Team aufstellen · Automatisch kämpfen", 34f, Color.white, TextAlignmentOptions.Bottom);
+            UIKit.Stretch(sub.rectTransform, 0, 0, 0, 0);
+            UX.Outline(sub);
 
-            var title = UIKit.Text(area, "Titel", "KESSELWERK", portrait ? 120f : 110f, Gold, TextAlignmentOptions.Center, true);
-            title.rectTransform.anchorMin = new Vector2(0f, portrait ? 0.82f : 0.78f);
-            title.rectTransform.anchorMax = new Vector2(1f, 0.97f);
-            title.rectTransform.offsetMin = title.rectTransform.offsetMax = Vector2.zero;
-            title.outlineWidth = 0.22f;
-            title.outlineColor = new Color32(60, 30, 0, 255);
-            title.characterSpacing = 6f;
-            var sub = UIKit.Text(area, "Untertitel", "Monster · Karten · Abenteuer", 40f, Color.white, TextAlignmentOptions.Center);
-            sub.rectTransform.anchorMin = new Vector2(0f, portrait ? 0.78f : 0.72f);
-            sub.rectTransform.anchorMax = new Vector2(1f, portrait ? 0.83f : 0.79f);
-            sub.rectTransform.offsetMin = sub.rectTransform.offsetMax = Vector2.zero;
-            sub.outlineWidth = 0.2f;
-            sub.outlineColor = new Color32(0, 0, 0, 200);
+            var col = UIKit.Rect("Knoepfe", page);
+            if (P) UIKit.Anchor(col, 0.06f, 0.02f, 0.94f, 0.42f); else UIKit.Anchor(col, 0.62f, 0.06f, 0.97f, 0.92f);
+            col.offsetMin = col.offsetMax = Vector2.zero;
 
-            var panel = Panel(area, "Menuefeld");
-            var prt = panel.rectTransform;
-            if (portrait) { prt.anchorMin = new Vector2(0.08f, 0.04f); prt.anchorMax = new Vector2(0.92f, 0.34f); }
-            else { prt.anchorMin = new Vector2(0.25f, 0.05f); prt.anchorMax = new Vector2(0.75f, 0.36f); }
-            prt.offsetMin = prt.offsetMax = Vector2.zero;
-
-            string deckInfo = P.DeckComplete ? $"Deck bereit ({P.deck.Count}/{PlayerProfile.DeckSize})" : $"Deck unvollständig ({P.deck.Count}/{PlayerProfile.DeckSize})";
-            var info = UIKit.Text(panel.transform, "Info", $"{deckInfo}   ·   Siege {P.wins}   ·   Niederlagen {P.losses}", 30f, new Color(0.85f, 0.85f, 0.9f), TextAlignmentOptions.Center);
-            info.rectTransform.anchorMin = new Vector2(0f, 0.82f);
-            info.rectTransform.anchorMax = new Vector2(1f, 0.97f);
-            info.rectTransform.offsetMin = new Vector2(20f, 0f);
-            info.rectTransform.offsetMax = new Vector2(-20f, 0f);
-            info.enableAutoSizing = true;
-            info.fontSizeMin = 16f;
-            info.fontSizeMax = 30f;
-
-            var fight = UIKit.Button(panel.transform, "Kaempfen", "Kämpfen!", Orange, OnFight, 60f);
-            var frt = (RectTransform)fight.transform;
-            frt.anchorMin = new Vector2(0.06f, 0.45f);
-            frt.anchorMax = new Vector2(0.94f, 0.8f);
-            frt.offsetMin = frt.offsetMax = Vector2.zero;
-
-            var shop = UIKit.Button(panel.transform, "Shop", "Shop", Blue, () => ShowPage(Page.Shop), 44f);
-            var srt = (RectTransform)shop.transform;
-            srt.anchorMin = new Vector2(0.06f, 0.07f);
-            srt.anchorMax = new Vector2(0.48f, 0.38f);
-            srt.offsetMin = srt.offsetMax = Vector2.zero;
-
-            var coll = UIKit.Button(panel.transform, "Sammlung", "Sammlung & Deck", Green, () => ShowPage(Page.Collection), 44f);
-            var crt = (RectTransform)coll.transform;
-            crt.anchorMin = new Vector2(0.52f, 0.07f);
-            crt.anchorMax = new Vector2(0.94f, 0.38f);
-            crt.offsetMin = crt.offsetMax = Vector2.zero;
-        }
-
-        void OnFight()
-        {
-            if (!P.DeckComplete)
+            var entries = new (string, Color, MenuPage?, System.Action)[]
             {
-                Toast($"Dein Deck braucht {PlayerProfile.DeckSize} Karten");
-                ShowPage(Page.Collection);
-                return;
-            }
-            GameFlow.ToBattle();
-        }
-
-        // ------------------------------------------------------------------
-        // Shop
-        // ------------------------------------------------------------------
-
-        void BuildShop()
-        {
-            var area = PageArea();
-            bool portrait = IsPortrait;
-
-            var panel = Panel(area, "Shopfeld");
-            var prt = panel.rectTransform;
-            if (portrait) { prt.anchorMin = new Vector2(0.08f, 0.05f); prt.anchorMax = new Vector2(0.92f, 0.62f); }
-            else { prt.anchorMin = new Vector2(0.2f, 0.06f); prt.anchorMax = new Vector2(0.8f, 0.9f); }
-            prt.offsetMin = prt.offsetMax = Vector2.zero;
-
-            var title = UIKit.Text(panel.transform, "Titel", "Monster-Pack", 56f, Gold, TextAlignmentOptions.Center, true);
-            title.rectTransform.anchorMin = new Vector2(0f, 0.86f);
-            title.rectTransform.anchorMax = new Vector2(1f, 0.97f);
-            title.rectTransform.offsetMin = title.rectTransform.offsetMax = Vector2.zero;
-
-            // Pack-Grafik
-            var packHolder = UIKit.Rect("Pack", panel.transform);
-            packHolder.anchorMin = new Vector2(0.5f, 0.55f);
-            packHolder.anchorMax = new Vector2(0.5f, 0.55f);
-            packHolder.sizeDelta = new Vector2(CardView.W, CardView.H);
-            Canvas.ForceUpdateCanvases();
-            float h = panel.rectTransform.rect.height * 0.5f;
-            packHolder.localScale = Vector3.one * Mathf.Clamp(h / CardView.H, 0.5f, 1.6f);
-            CreatePack(packHolder);
-            StartCoroutine(Bob(packHolder));
-
-            var odds = UIKit.Text(panel.transform, "Chancen",
-                $"{PlayerProfile.PackSize} Karten · mindestens 1 seltene\n<size=80%><color=#bbbbbb>Gewöhnlich 66% · <color=#5aa0ff>Selten 24%</color> · <color=#c070ff>Episch 8%</color> · <color=#ffa030>Legendär 2%</color></color></size>",
-                30f, Color.white, TextAlignmentOptions.Center);
-            odds.rectTransform.anchorMin = new Vector2(0f, 0.2f);
-            odds.rectTransform.anchorMax = new Vector2(1f, 0.31f);
-            odds.rectTransform.offsetMin = new Vector2(20f, 0f);
-            odds.rectTransform.offsetMax = new Vector2(-20f, 0f);
-            odds.enableAutoSizing = true;
-            odds.fontSizeMin = 14f;
-            odds.fontSizeMax = 30f;
-
-            var buy = UIKit.Button(panel.transform, "Kaufen", $"Kaufen  ·  {PlayerProfile.PackPrice} Gold", Orange, BuyPack, 44f);
-            var brt = (RectTransform)buy.transform;
-            brt.anchorMin = new Vector2(0.12f, 0.05f);
-            brt.anchorMax = new Vector2(0.88f, 0.17f);
-            brt.offsetMin = brt.offsetMax = Vector2.zero;
-            buy.interactable = P.gold >= PlayerProfile.PackPrice;
-
-            var hint = UIKit.Text(area, "Hinweis", "Siege bringen Gold. Doppelte Karten werden zu Staub –\ndamit stellst du in der Sammlung gezielt Karten her.",
-                30f, Color.white, TextAlignmentOptions.Center);
-            hint.rectTransform.anchorMin = new Vector2(0.05f, portrait ? 0.64f : 0.9f);
-            hint.rectTransform.anchorMax = new Vector2(0.95f, portrait ? 0.74f : 0.99f);
-            hint.rectTransform.offsetMin = hint.rectTransform.offsetMax = Vector2.zero;
-            hint.outlineWidth = 0.2f;
-            hint.outlineColor = new Color32(0, 0, 0, 220);
-            hint.enableAutoSizing = true;
-            hint.fontSizeMin = 14f;
-            hint.fontSizeMax = 30f;
-        }
-
-        IEnumerator Bob(RectTransform rt)
-        {
-            Vector2 start = rt.anchoredPosition;
-            while (rt != null)
+                ("Kampagne", UX.Accent, MenuPage.Campaign, null),
+                ("Beschwören", new Color(0.55f, 0.3f, 0.85f), MenuPage.Summon, null),
+                ("Sammlung", UX.Blue, MenuPage.Collection, null),
+                ("Team", UX.Green, MenuPage.Team, null),
+                ("Aufgaben", new Color(0.75f, 0.45f, 0.2f), null, ShowTasks),
+                ("Arena (Online)", UX.Grey, null, () => Toast("Online-Arena folgt: Server auf deinem Homeserver ist in Vorbereitung.")),
+                ("Einstellungen", new Color(0.3f, 0.32f, 0.4f), MenuPage.Settings, null),
+            };
+            int cols = P ? 2 : 1;
+            int rows = Mathf.CeilToInt(entries.Length / (float)cols);
+            for (int i = 0; i < entries.Length; i++)
             {
-                rt.anchoredPosition = start + new Vector2(0f, Mathf.Sin(Time.time * 2f) * 10f);
-                rt.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(Time.time * 1.3f) * 2f);
-                yield return null;
+                var e = entries[i];
+                int cx = i % cols, cy = i / cols;
+                var b = Btn(col, e.Item1, e.Item2, () => { if (e.Item3.HasValue) Show(e.Item3.Value); else e.Item4(); }, P ? 46f : 42f);
+                var rt = (RectTransform)b.transform;
+                float w = 1f / cols, h = 1f / rows;
+                rt.anchorMin = new Vector2(cx * w, 1f - (cy + 1) * h);
+                rt.anchorMax = new Vector2((cx + 1) * w, 1f - cy * h);
+                rt.offsetMin = new Vector2(10f, 8f);
+                rt.offsetMax = new Vector2(-10f, -8f);
             }
+
+            int open = 0;
+            for (int i = 0; i < 3; i++) if (!D.taskClaimed[i] && Progress.TaskProgress(D, i) >= Progress.TaskGoal[i]) open++;
+            if (open > 0) Toast($"{open} Aufgabe(n) abholbereit!");
         }
 
-        /// <summary>Gestaltetes Pack (gleiche Größe wie eine Karte).</summary>
-        static void CreatePack(RectTransform parent)
+        public void ShowTasks()
         {
-            var glow = UIKit.Img(parent, "Leuchten", UIKit.Glow, new Color(1f, 0.7f, 0.25f, 0.6f));
-            UIKit.Stretch(glow.rectTransform, -90, -90, -90, -90);
-            var shadow = UIKit.Img(parent, "Schatten", UIKit.RoundedSoft, new Color(0f, 0f, 0f, 0.6f));
-            UIKit.Stretch(shadow.rectTransform, -12, -20, -12, -4);
-            var frame = UIKit.Img(parent, "Rahmen", UIKit.Rounded, Gold);
-            UIKit.Stretch(frame.rectTransform);
-            var inner = UIKit.Img(parent, "Innen", UIKit.Rounded, new Color(0.55f, 0.18f, 0.55f));
-            UIKit.Stretch(inner.rectTransform, 7, 7, 7, 7);
-            var grad = UIKit.Img(inner.transform, "Verlauf", UIKit.Gradient, new Color(1f, 0.6f, 0.2f, 0.7f));
-            UIKit.Stretch(grad.rectTransform);
-            Emblem(parent, 120f, new Vector2(0f, 20f));
-            var label = UIKit.Text(parent, "Name", "MONSTER\nPACK", 30f, Color.white, TextAlignmentOptions.Center, true);
-            label.rectTransform.anchorMin = new Vector2(0f, 0.04f);
-            label.rectTransform.anchorMax = new Vector2(1f, 0.3f);
-            label.rectTransform.offsetMin = label.rectTransform.offsetMax = Vector2.zero;
-            label.outlineWidth = 0.25f;
-            label.outlineColor = new Color32(60, 0, 40, 255);
-            // Zackenrand oben und unten wie bei einer Folienpackung
-            for (int i = 0; i < 11; i++)
+            var panel = OpenOverlay("Tägliche Aufgaben", new Vector2(900f, 900f));
+            for (int i = 0; i < 3; i++)
             {
-                foreach (float y in new[] { 1f, 0f })
-                {
-                    var t = UIKit.Img(parent, "Zacke", null, Gold);
-                    t.rectTransform.anchorMin = t.rectTransform.anchorMax = new Vector2(i / 10f, y);
-                    t.rectTransform.sizeDelta = new Vector2(14f, 14f);
-                    t.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 45f);
-                }
+                int idx = i;
+                int prog = Progress.TaskProgress(D, i), goal = Progress.TaskGoal[i];
+                bool done = prog >= goal, claimed = D.taskClaimed[i];
+                var row = UIKit.Img(panel, "Aufgabe", UIKit.Rounded, new Color(1f, 1f, 1f, 0.06f));
+                row.rectTransform.anchorMin = new Vector2(0f, 1f);
+                row.rectTransform.anchorMax = new Vector2(1f, 1f);
+                row.rectTransform.pivot = new Vector2(0.5f, 1f);
+                row.rectTransform.anchoredPosition = new Vector2(0f, -160f - i * 170f);
+                row.rectTransform.sizeDelta = new Vector2(-60f, 150f);
+                var tx = UIKit.Text(row.transform, "T", $"<b>{Progress.TaskNames[i]}</b>\n<size=75%>{Mathf.Min(prog, goal)} / {goal}  ·  Belohnung {Progress.TaskCrystals[i]} Kristalle</size>", 34f, Color.white, TextAlignmentOptions.MidlineLeft);
+                UIKit.Stretch(tx.rectTransform, 30, 0, 300, 0);
+                var b = Btn(row.transform, claimed ? "Erledigt" : done ? "Abholen" : "Offen", claimed ? UX.Grey : done ? UX.Green : UX.Grey,
+                    () => { if (Progress.ClaimTask(D, idx)) { Game.Save(); Sound.Play("selten"); Toast($"+{Progress.TaskCrystals[idx]} Kristalle"); ShowTasks(); RefreshTop(); } }, 32f);
+                b.interactable = done && !claimed;
+                UIKit.Place((RectTransform)b.transform, new Vector2(1f, 0.5f), new Vector2(-150f, 0f), new Vector2(250f, 96f));
             }
+            var streak = UIKit.Text(panel, "Serie", $"Login-Serie: {D.loginStreak} Tag(e) – jeden Tag mehr Kristalle (bis Tag 7).", 28f, new Color(1f, 0.9f, 0.6f), TextAlignmentOptions.Center);
+            streak.rectTransform.anchorMin = new Vector2(0f, 0f);
+            streak.rectTransform.anchorMax = new Vector2(1f, 0f);
+            streak.rectTransform.anchoredPosition = new Vector2(0f, 190f);
+            streak.rectTransform.sizeDelta = new Vector2(-60f, 80f);
         }
 
-        static void Emblem(RectTransform parent, float size, Vector2 pos)
-        {
-            var ring = UIKit.Img(parent, "Emblem", UIKit.Circle, Gold);
-            UIKit.Place(ring.rectTransform, new Vector2(0.5f, 0.5f), pos, new Vector2(size, size));
-            var innerC = UIKit.Img(ring.transform, "Innen", UIKit.Circle, new Color(0.18f, 0.08f, 0.2f));
-            UIKit.Stretch(innerC.rectTransform, size * 0.07f, size * 0.07f, size * 0.07f, size * 0.07f);
-            var k = UIKit.Text(ring.transform, "K", "K", size * 0.6f, Gold, TextAlignmentOptions.Center, true);
-            UIKit.Stretch(k.rectTransform);
-        }
+        // ---------------- Kampagne ----------------
 
-        /// <summary>Kartenrückseite.</summary>
-        static RectTransform CreateCardBack(Transform parent)
+        void BuildCampaign()
         {
-            var rt = UIKit.Rect("Rueckseite", parent);
-            rt.sizeDelta = new Vector2(CardView.W, CardView.H);
-            var shadow = UIKit.Img(rt, "Schatten", UIKit.RoundedSoft, new Color(0f, 0f, 0f, 0.6f));
-            UIKit.Stretch(shadow.rectTransform, -10, -18, -10, -4);
-            var frame = UIKit.Img(rt, "Rahmen", UIKit.Rounded, Gold);
-            UIKit.Stretch(frame.rectTransform);
-            frame.raycastTarget = true;
-            var inner = UIKit.Img(rt, "Innen", UIKit.Rounded, new Color(0.2f, 0.1f, 0.3f));
-            UIKit.Stretch(inner.rectTransform, 8, 8, 8, 8);
-            var grad = UIKit.Img(inner.transform, "Verlauf", UIKit.Gradient, new Color(0.5f, 0.25f, 0.8f, 0.6f));
-            UIKit.Stretch(grad.rectTransform);
-            var line = UIKit.Img(rt, "Linie", UIKit.Rounded, new Color(Gold.r, Gold.g, Gold.b, 0.5f));
-            UIKit.Stretch(line.rectTransform, 18, 18, 18, 18);
-            var inner2 = UIKit.Img(rt, "Innen2", UIKit.Rounded, new Color(0.22f, 0.11f, 0.32f));
-            UIKit.Stretch(inner2.rectTransform, 21, 21, 21, 21);
-            Emblem(rt, 110f, Vector2.zero);
-            return rt;
-        }
+            var head = Area(0f, 0.88f, 1f, 1f);
+            Heading(head, "Kampagne", 56f);
 
-        void BuyPack()
-        {
-            var cards = P.OpenPack();
-            if (cards == null) { Toast("Nicht genug Gold"); return; }
-
-            var results = new List<(CardData card, bool isNew, int dust)>();
-            foreach (var c in cards)
+            // Regionen
+            var tabs = Area(0.04f, 0.8f, 0.96f, 0.88f);
+            for (int r = 0; r < Campaign.RegionCount; r++)
             {
-                bool isNew = P.Count(c.id) == 0;
-                int dust = P.AddCard(c);
-                results.Add((c, isNew, dust));
+                int rr = r;
+                bool unlocked = Campaign.IsUnlocked(D, r, 0);
+                var b = Btn(tabs, unlocked ? Campaign.RegionNames[r] : Campaign.RegionNames[r] + " (gesperrt)", r == campaignRegion ? UX.Accent : UX.Grey,
+                    () => { campaignRegion = rr; selectedStage = -1; Show(MenuPage.Campaign); }, 34f);
+                b.interactable = unlocked;
+                var rt = (RectTransform)b.transform;
+                UIKit.Anchor(rt, r / (float)Campaign.RegionCount, 0f, (r + 1) / (float)Campaign.RegionCount, 1f);
+                rt.offsetMin = new Vector2(8f, 6f);
+                rt.offsetMax = new Vector2(-8f, -6f);
             }
-            P.Save();
-            StartCoroutine(OpenPackRoutine(results));
-        }
 
-        IEnumerator OpenPackRoutine(List<(CardData card, bool isNew, int dust)> results)
-        {
-            var content = OpenOverlay("Pack geöffnet!");
-            bool portrait = IsPortrait;
-            Canvas.ForceUpdateCanvases();
-            Rect r = root.rect;
+            // Stufen als Pfad
+            var path = P ? Area(0.04f, 0.47f, 0.96f, 0.79f) : Area(0.03f, 0.03f, 0.5f, 0.79f);
+            var pbg = UX.Panel(path, "Karte", new Color(0.05f, 0.08f, 0.05f, 0.6f));
+            UIKit.Stretch(pbg.rectTransform);
+            var info = UIKit.Text(path, "Beschreibung", Campaign.RegionText[campaignRegion], 26f, new Color(1f, 1f, 1f, 0.75f), TextAlignmentOptions.Top);
+            info.rectTransform.anchorMin = new Vector2(0f, 1f);
+            info.rectTransform.anchorMax = new Vector2(1f, 1f);
+            info.rectTransform.pivot = new Vector2(0.5f, 1f);
+            info.rectTransform.anchoredPosition = new Vector2(0f, -14f);
+            info.rectTransform.sizeDelta = new Vector2(-40f, 70f);
 
-            int n = results.Count;
-            int cols = portrait ? 2 : n;
-            int rows = Mathf.CeilToInt(n / (float)cols);
-            float scale = Mathf.Min(r.width * 0.86f / (cols * CardView.W * 1.1f), r.height * 0.62f / (rows * CardView.H * 1.1f));
-            float cw = CardView.W * scale * 1.1f;
-            float ch = CardView.H * scale * 1.1f;
-
-            int flipped = 0;
-            Button next = null;
-            Button revealAll = null;
-            var flips = new List<Action>();
-
+            int n = Campaign.StagesPerRegion;
+            int perRow = 4;
             for (int i = 0; i < n; i++)
             {
-                var res = results[i];
-                int col = i % cols;
-                int row = i / cols;
-                var slot = UIKit.Rect("Platz" + i, content);
-                slot.anchorMin = slot.anchorMax = new Vector2(0.5f, 0.52f);
-                slot.anchoredPosition = new Vector2((col - (cols - 1) * 0.5f) * cw, ((rows - 1) * 0.5f - row) * ch);
-                slot.sizeDelta = new Vector2(CardView.W, CardView.H);
-                slot.localScale = Vector3.one * scale;
-
-                var glow = UIKit.Img(slot, "Seltenheit", UIKit.Glow, new Color(1f, 1f, 1f, 0f));
-                UIKit.Stretch(glow.rectTransform, -80, -80, -80, -80);
-
-                var back = CreateCardBack(slot);
-                StartCoroutine(DealIn(slot, i * 0.12f, scale));
-
-                bool done = false;
-                Action flip = () =>
+                int idx = i;
+                var s = Campaign.Get(campaignRegion, i);
+                bool unlocked = Campaign.IsUnlocked(D, campaignRegion, i);
+                bool cleared = D.regionProgress[campaignRegion] > i;
+                int row = i / perRow, colI = i % perRow;
+                if (row % 2 == 1) colI = perRow - 1 - colI; // Schlangenlinie
+                float x = (colI + 0.5f) / perRow, y = 0.62f - row * 0.36f;
+                Color c = !unlocked ? new Color(0.25f, 0.25f, 0.28f) : cleared ? new Color(0.25f, 0.6f, 0.3f) : (s.boss ? new Color(0.8f, 0.25f, 0.2f) : UX.Accent);
+                var node = UIKit.Button(path, "Stufe" + i, s.boss ? "BOSS" : (i + 1).ToString(), c, () => { if (unlocked) { selectedStage = idx; Sound.Play("klick"); Show(MenuPage.Campaign); } }, s.boss ? 30f : 44f);
+                var rt = (RectTransform)node.transform;
+                float size = s.boss ? 150f : s.elite ? 130f : 115f;
+                UIKit.Place(rt, new Vector2(x, y), Vector2.zero, new Vector2(size, size));
+                node.GetComponent<Image>().sprite = UIKit.Circle;
+                if (i == selectedStage)
                 {
-                    if (done) return;
-                    done = true;
-                    StartCoroutine(Flip(slot, back, glow, res.card, res.isNew, res.dust, scale, () =>
-                    {
-                        flipped++;
-                        if (flipped >= n && next != null)
-                        {
-                            next.gameObject.SetActive(true);
-                            if (revealAll != null) revealAll.gameObject.SetActive(false);
-                        }
-                    }));
-                };
-                flips.Add(flip);
-                foreach (var b in back.GetComponentsInChildren<Image>())
+                    var ring = UIKit.Img(path, "Auswahl", UIKit.Glow, new Color(1f, 0.9f, 0.4f, 0.9f));
+                    UIKit.Place(ring.rectTransform, new Vector2(x, y), Vector2.zero, new Vector2(size + 80f, size + 80f));
+                    ring.transform.SetSiblingIndex(rt.GetSiblingIndex());
+                }
+                if (s.elite)
                 {
-                    if (!b.raycastTarget) continue;
-                    var bb = b.GetComponent<Button>();
-                    if (bb == null) bb = b.gameObject.AddComponent<Button>();
-                    bb.transition = Selectable.Transition.None;
-                    bb.onClick.AddListener(() => flip());
+                    var el = UIKit.Text(rt, "Elite", "Elite", 20f, new Color(1f, 0.9f, 0.5f), TextAlignmentOptions.Bottom, true);
+                    UIKit.Stretch(el.rectTransform, 0, -26, 0, 0);
+                    UX.Outline(el);
                 }
             }
+            if (selectedStage < 0)
+            {
+                int next = Mathf.Min(D.regionProgress[campaignRegion], n - 1);
+                selectedStage = next;
+                Show(MenuPage.Campaign);
+                return;
+            }
 
-            revealAll = OverlayButton(content, "Alle aufdecken", Blue, 0.5f, () => { foreach (var f in flips) f(); });
-            next = OverlayButton(content, "Weiter", Orange, 0.5f, () => { CloseOverlay(); ShowPage(Page.Shop); mm.SpawnPals(); });
-            next.gameObject.SetActive(false);
-            yield break;
+            // Details zur gewählten Stufe
+            var det = P ? Area(0.04f, 0.02f, 0.96f, 0.46f) : Area(0.52f, 0.03f, 0.97f, 0.79f);
+            var dbg = UX.Panel(det, "Details", UX.PanelDark);
+            UIKit.Stretch(dbg.rectTransform);
+            var stage = Campaign.Get(campaignRegion, selectedStage);
+            var dh = Heading(det, $"Stufe {stage.name}", 44f);
+            dh.rectTransform.anchoredPosition = new Vector2(0f, -16f);
+
+            var team = D.BuildTeam();
+            int myPower = TeamPower(team), enemyPower = TeamPower(stage.enemy);
+            string pc = myPower >= enemyPower ? "#7dffb0" : myPower >= enemyPower * 0.8f ? "#ffd23f" : "#ff7a6b";
+            var pw = UIKit.Text(det, "Kraft", $"Deine Kraft <color={pc}><b>{myPower:N0}</b></color>   ·   Gegner <b>{enemyPower:N0}</b>", 28f, Color.white, TextAlignmentOptions.Top);
+            pw.rectTransform.anchorMin = new Vector2(0f, 1f);
+            pw.rectTransform.anchorMax = new Vector2(1f, 1f);
+            pw.rectTransform.pivot = new Vector2(0.5f, 1f);
+            pw.rectTransform.anchoredPosition = new Vector2(0f, -78f);
+            pw.rectTransform.sizeDelta = new Vector2(-40f, 40f);
+
+            // Gegnerliste
+            var list = UIKit.Rect("Gegner", det);
+            list.anchorMin = new Vector2(0f, 1f);
+            list.anchorMax = new Vector2(1f, 1f);
+            list.pivot = new Vector2(0.5f, 1f);
+            list.anchoredPosition = new Vector2(0f, -130f);
+            list.sizeDelta = new Vector2(-40f, 260f);
+            var units = stage.enemy.units;
+            for (int i = 0; i < units.Count; i++)
+            {
+                var u = units[i];
+                var d = CreatureDb.Get(u.id);
+                int cx = i % 3, cy = i / 3;
+                var cell = UIKit.Img(list, "Gegner", UIKit.Rounded, d.isBoss ? new Color(0.5f, 0.12f, 0.1f, 0.8f) : new Color(1f, 1f, 1f, 0.06f));
+                UIKit.Anchor(cell.rectTransform, cx / 3f, 1f - (cy + 1) * 0.5f, (cx + 1) / 3f, 1f - cy * 0.5f);
+                cell.rectTransform.offsetMin = new Vector2(6f, 6f);
+                cell.rectTransform.offsetMax = new Vector2(-6f, -6f);
+                var chip = UX.ElementChip(cell.transform, d.element, 52f);
+                chip.anchorMin = chip.anchorMax = new Vector2(0f, 0.5f);
+                chip.anchoredPosition = new Vector2(38f, 0f);
+                var nt = UIKit.Text(cell.transform, "N", $"<b>{d.StageName(u.stage)}</b>\n<size=75%>Stufe {u.level} · {(u.slot < 3 ? "vorne" : "hinten")}</size>", 24f, Color.white, TextAlignmentOptions.MidlineLeft);
+                UIKit.Stretch(nt.rectTransform, 72, 0, 6, 0);
+                nt.enableAutoSizing = true; nt.fontSizeMin = 12; nt.fontSizeMax = 24;
+            }
+
+            bool first = D.regionProgress[campaignRegion] <= selectedStage;
+            string rw = $"Belohnung: <color=#ffd23f>{stage.gold} Gold</color>, <color=#9fd3ff>{stage.xp} EP</color>" +
+                        (first ? $", <color=#d79bff>{stage.crystalsFirst} Kristalle</color>, {stage.potions} Tränke" + (stage.stones > 0 ? $", {stage.stones} Steine" : "") + " (erstmalig)" : "");
+            var rwt = UIKit.Text(det, "Belohnung", rw, 26f, Color.white, TextAlignmentOptions.Center);
+            rwt.rectTransform.anchorMin = new Vector2(0f, 0f);
+            rwt.rectTransform.anchorMax = new Vector2(1f, 0f);
+            rwt.rectTransform.anchoredPosition = new Vector2(0f, 175f);
+            rwt.rectTransform.sizeDelta = new Vector2(-40f, 70f);
+
+            var fight = Btn(det, "Kämpfen!", new Color(0.85f, 0.3f, 0.15f), () =>
+            {
+                if (D.TeamCount() == 0) { Toast("Stelle zuerst ein Team auf!"); return; }
+                Game.PendingStage = stage;
+                GameFlow.ToBattle();
+            }, 50f);
+            UIKit.Place((RectTransform)fight.transform, new Vector2(0.5f, 0f), new Vector2(150f, 75f), new Vector2(380f, 110f));
+            var teamB = Btn(det, "Team", UX.Green, () => Show(MenuPage.Team), 40f);
+            UIKit.Place((RectTransform)teamB.transform, new Vector2(0.5f, 0f), new Vector2(-180f, 75f), new Vector2(240f, 110f));
         }
 
-        IEnumerator DealIn(RectTransform slot, float delay, float scale)
+        public void SelectStage(int region, int index)
         {
-            Vector2 target = slot.anchoredPosition;
-            slot.anchoredPosition = target + new Vector2(0f, -900f);
-            slot.localRotation = Quaternion.Euler(0f, 0f, 25f);
-            yield return new WaitForSeconds(delay);
-            float t = 0f;
-            while (t < 1f && slot != null)
-            {
-                t += Time.deltaTime / 0.35f;
-                float k = 1f - Mathf.Pow(1f - Mathf.Clamp01(t), 3f);
-                slot.anchoredPosition = Vector2.Lerp(target + new Vector2(0f, -900f), target, k);
-                slot.localRotation = Quaternion.Euler(0f, 0f, 25f * (1f - k));
-                yield return null;
-            }
-            if (slot != null) { slot.anchoredPosition = target; slot.localRotation = Quaternion.identity; }
+            campaignRegion = region;
+            selectedStage = index;
+            Show(MenuPage.Campaign);
         }
 
-        IEnumerator Flip(RectTransform slot, RectTransform back, Image glow, CardData card, bool isNew, int dust, float scale, Action onDone)
+        static int TeamPower(TeamSpec t)
         {
-            float t = 0f;
-            while (t < 1f && slot != null)
+            int p = 0;
+            foreach (var u in t.units) p += Stats.Power(CreatureDb.Get(u.id), u);
+            return p;
+        }
+
+        // ---------------- Beschwörung ----------------
+
+        void BuildSummon()
+        {
+            var area = P ? Area(0.05f, 0.03f, 0.95f, 0.97f) : Area(0.2f, 0.04f, 0.8f, 0.96f);
+            var bg = UX.Panel(area, "Portal", new Color(0.12f, 0.06f, 0.2f, 0.85f));
+            UIKit.Stretch(bg.rectTransform);
+            var glow = UIKit.Img(area, "Leuchten", UIKit.Glow, new Color(0.7f, 0.4f, 1f, 0.5f));
+            UIKit.Place(glow.rectTransform, new Vector2(0.5f, 0.6f), Vector2.zero, new Vector2(900f, 900f));
+            StartCoroutine(Pulse(glow.rectTransform));
+            Heading(area, "Kesselbeschwörung", 60f).rectTransform.anchoredPosition = new Vector2(0f, -30f);
+
+            var txt = UIKit.Text(area, "Text",
+                "Wirf Kristalle in den Kessel und beschwöre neue Kreaturen.\nDoppelte Kreaturen werden zu Kopien für die <b>Fusion</b> (mehr Sterne).", 30f, Color.white, TextAlignmentOptions.Center);
+            UIKit.Place(txt.rectTransform, new Vector2(0.5f, 0.62f), Vector2.zero, new Vector2(860f, 200f));
+
+            int toRare = Mathf.Max(1, Summon.PityRare - D.pityRare);
+            int toLeg = Mathf.Max(1, Summon.PityLegend - D.pityLegend);
+            var pity = UIKit.Text(area, "Garantie",
+                $"Garantiert <color=#5aa0ff>Selten+</color> in spätestens <b>{toRare}</b> Beschwörung(en)\nGarantiert <color=#ffb84a>Legendär+</color> in spätestens <b>{toLeg}</b>", 28f, new Color(1f, 0.95f, 0.8f), TextAlignmentOptions.Center);
+            UIKit.Place(pity.rectTransform, new Vector2(0.5f, 0.42f), Vector2.zero, new Vector2(860f, 120f));
+
+            var one = Btn(area, $"1x  ({Summon.CostSingle})", new Color(0.45f, 0.3f, 0.85f), () => DoSummon(1), 40f);
+            UIKit.Place((RectTransform)one.transform, new Vector2(0.5f, 0.22f), new Vector2(-220f, 0f), new Vector2(380f, 130f));
+            var ten = Btn(area, $"10x  ({Summon.CostTen})", new Color(0.85f, 0.5f, 0.15f), () => DoSummon(10), 40f);
+            UIKit.Place((RectTransform)ten.transform, new Vector2(0.5f, 0.22f), new Vector2(220f, 0f), new Vector2(380f, 130f));
+            one.interactable = D.crystals >= Summon.CostSingle;
+            ten.interactable = D.crystals >= Summon.CostTen;
+
+            var rates = Btn(area, "Wahrscheinlichkeiten", UX.Grey, ShowRates, 30f);
+            UIKit.Place((RectTransform)rates.transform, new Vector2(0.5f, 0.08f), Vector2.zero, new Vector2(460f, 90f));
+        }
+
+        IEnumerator Pulse(RectTransform rt)
+        {
+            while (rt != null)
             {
-                t += Time.deltaTime / 0.15f;
-                slot.localScale = new Vector3(scale * (1f - Mathf.Clamp01(t)), scale * (1f + 0.08f * t), 1f);
-                yield return null;
-            }
-            if (slot == null) yield break;
-            Destroy(back.gameObject);
-            var view = CardView.Create(slot, card);
-            view.rt.anchorMin = view.rt.anchorMax = new Vector2(0.5f, 0.5f);
-            view.rt.anchoredPosition = Vector2.zero;
-            view.button.interactable = false;
-
-            Color rc = CardData.RarityColor(card.rarity);
-            glow.color = new Color(rc.r, rc.g, rc.b, card.rarity == Rarity.Common ? 0.25f : 0.85f);
-
-            var rarity = UIKit.Text(slot, "Seltenheit", CardData.RarityName(card.rarity), 28f, rc, TextAlignmentOptions.Center, true);
-            UIKit.Place(rarity.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, -30f), new Vector2(300f, 44f));
-            rarity.outlineWidth = 0.25f;
-            rarity.outlineColor = new Color32(0, 0, 0, 230);
-
-            if (isNew || dust > 0)
-            {
-                var tag = UIKit.Img(slot, "Marke", UIKit.Rounded, isNew ? new Color(0.9f, 0.2f, 0.25f) : new Color(0.55f, 0.3f, 0.85f));
-                UIKit.Place(tag.rectTransform, new Vector2(1f, 1f), new Vector2(-24f, -4f), new Vector2(isNew ? 100f : 150f, 44f));
-                tag.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -12f);
-                var tt = UIKit.Text(tag.transform, "Text", isNew ? "NEU!" : $"+{dust} Staub", 26f, Color.white, TextAlignmentOptions.Center, true);
-                UIKit.Stretch(tt.rectTransform);
-            }
-
-            t = 0f;
-            while (t < 1f && slot != null)
-            {
-                t += Time.deltaTime / 0.2f;
-                float k = Mathf.Clamp01(t);
-                slot.localScale = new Vector3(scale * k, scale * (1.08f - 0.08f * k), 1f);
-                yield return null;
-            }
-            if (slot != null) slot.localScale = Vector3.one * scale;
-            onDone?.Invoke();
-
-            // Pulsierendes Leuchten
-            while (glow != null && card.rarity != Rarity.Common)
-            {
-                float p = 0.6f + 0.4f * Mathf.Sin(Time.time * 4f);
-                glow.color = new Color(rc.r, rc.g, rc.b, p);
+                rt.localScale = Vector3.one * (1f + Mathf.Sin(Time.time * 2f) * 0.06f);
+                rt.localRotation = Quaternion.Euler(0f, 0f, Time.time * 10f);
                 yield return null;
             }
         }
 
-        // ------------------------------------------------------------------
-        // Sammlung & Deck
-        // ------------------------------------------------------------------
+        public void ShowRates()
+        {
+            var panel = OpenOverlay("Wahrscheinlichkeiten", new Vector2(860f, 1100f));
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < Summon.Rates.Length; i++)
+            {
+                var r = (Rarity)i;
+                var names = new List<string>();
+                foreach (var d in CreatureDb.OfRarity(r)) names.Add(d.Name);
+                sb.Append($"<color={Look.Hex(Look.RarityColor(r))}><b>{Look.RarityName(r)}  {Summon.Rates[i]:0.0} %</b></color>\n<size=70%>{string.Join(", ", names)}</size>\n\n");
+            }
+            sb.Append($"<size=75%>Spätestens jede {Summon.PityRare}. Beschwörung ist mindestens Selten, spätestens jede {Summon.PityLegend}. mindestens Legendär. Innerhalb einer Seltenheit sind alle Kreaturen gleich wahrscheinlich.</size>");
+            var t = UIKit.Text(panel, "Tabelle", sb.ToString(), 32f, Color.white, TextAlignmentOptions.TopLeft);
+            UIKit.Stretch(t.rectTransform, 50, 150, 50, 140);
+            t.enableAutoSizing = true; t.fontSizeMin = 14; t.fontSizeMax = 32;
+        }
+
+        Coroutine summonCo;
+
+        public void DoSummon(int count)
+        {
+            if (!Summon.Pull(D, count, new Kesselwerk.Core.Rng(System.Environment.TickCount ^ D.summons * 7919), out var res, out var err))
+            {
+                Toast(err);
+                return;
+            }
+            Game.Save();
+            RefreshTop();
+            if (summonCo != null) StopCoroutine(summonCo);
+            summonCo = StartCoroutine(SummonSequence(res));
+        }
+
+        IEnumerator SummonSequence(List<SummonResult> res)
+        {
+            overlay.gameObject.SetActive(true);
+            UX.Clear(overlay);
+            var dim = UIKit.Img(overlay, "Abdunkeln", null, new Color(0.02f, 0.01f, 0.05f, 0.9f));
+            UIKit.Stretch(dim.rectTransform);
+            dim.raycastTarget = true;
+            var halo = UIKit.Img(overlay, "Leuchten", UIKit.Glow, new Color(0.6f, 0.35f, 1f, 0.35f));
+            UIKit.Place(halo.rectTransform, new Vector2(0.5f, 0.55f), Vector2.zero, new Vector2(1600f, 1600f));
+            StartCoroutine(Pulse(halo.rectTransform));
+            Sound.Play("beschwoerung");
+
+            // Karten austeilen (Rückseiten)
+            int n = res.Count;
+            int cols = n == 1 ? 1 : (P ? 3 : 5);
+            int rows = Mathf.CeilToInt(n / (float)cols);
+            float scale = n == 1 ? 1.7f : (P ? 1.0f : 1.05f);
+            float cw = CardView.W * scale * 1.1f, ch = CardView.H * scale * 1.2f;
+            var backs = new List<RectTransform>();
+            var targets = new List<Vector2>();
+            for (int i = 0; i < n; i++)
+            {
+                int cx = i % cols, cy = i / cols;
+                int inRow = Mathf.Min(cols, n - cy * cols);
+                var pos = new Vector2((cx - (inRow - 1) * 0.5f) * cw, ((rows - 1) * 0.5f - cy) * ch + 70f);
+                targets.Add(pos);
+                var back = UIKit.Rect("Rueckseite", overlay);
+                back.sizeDelta = new Vector2(CardView.W, CardView.H);
+                back.localScale = Vector3.one * scale;
+                var bimg = UIKit.Img(back, "Rahmen", UIKit.Rounded, Color.Lerp(Look.RarityColor(res[i].def.rarity), new Color(0.2f, 0.15f, 0.3f), 0.75f));
+                UIKit.Stretch(bimg.rectTransform);
+                var inner = UIKit.Img(back, "Innen", UIKit.Rounded, new Color(0.15f, 0.1f, 0.25f));
+                UIKit.Stretch(inner.rectTransform, 10, 10, 10, 10);
+                var sym = UIKit.Text(back, "K", "K", 120f, new Color(1f, 0.82f, 0.38f, 0.8f), TextAlignmentOptions.Center, true);
+                UIKit.Stretch(sym.rectTransform);
+                back.anchoredPosition = new Vector2(0f, -900f);
+                backs.Add(back);
+            }
+            for (int i = 0; i < n; i++)
+            {
+                StartCoroutine(MoveTo(backs[i], targets[i], 0.3f));
+                yield return new WaitForSeconds(0.06f);
+            }
+            yield return new WaitForSeconds(0.4f);
+
+            // Umdrehen
+            for (int i = 0; i < n; i++)
+            {
+                var r = res[i];
+                yield return Flip(backs[i], 0.12f, true);
+                var v = CardView.Create(overlay, r.def, D.Get(r.def.id));
+                v.rt.anchoredPosition = targets[i];
+                v.rt.localScale = new Vector3(0f, scale, 1f);
+                v.button.interactable = false;
+                Destroy(backs[i].gameObject);
+                if (r.def.rarity >= Rarity.Selten)
+                {
+                    var g = UIKit.Img(v.rt, "Seltenheit", UIKit.Glow, Look.RarityColor(r.def.rarity));
+                    UIKit.Stretch(g.rectTransform, -60, -60, -60, -60);
+                    g.transform.SetAsFirstSibling();
+                    Sound.Play("selten", 0.8f, r.def.rarity >= Rarity.Legendaer ? 0.8f : 1f);
+                }
+                else Sound.Play("klick", 0.8f, 1.3f);
+                var tag = UIKit.Text(v.rt, "Marke", r.isNew ? "NEU!" : "+1 Kopie", 30f, r.isNew ? UX.Gold : new Color(0.8f, 0.9f, 1f), TextAlignmentOptions.Center, true);
+                tag.rectTransform.anchorMin = tag.rectTransform.anchorMax = new Vector2(0.5f, 1f);
+                tag.rectTransform.anchoredPosition = new Vector2(0f, 22f);
+                tag.rectTransform.sizeDelta = new Vector2(220f, 44f);
+                UX.Outline(tag, 0.3f);
+                yield return ScaleX(v.rt, scale, 0.12f);
+                yield return new WaitForSeconds(n == 1 ? 0.1f : 0.04f);
+            }
+
+            // Beste Kreatur in 3D zeigen
+            SummonResult best = res[0];
+            foreach (var r in res) if (r.def.rarity > best.def.rarity || (r.def.rarity == best.def.rarity && r.isNew && !best.isNew)) best = r;
+
+            var showBtn = Btn(overlay, "3D ansehen", UX.Blue, () => StartCoroutine(Reveal3D(best)), 36f);
+            UIKit.Place((RectTransform)showBtn.transform, new Vector2(0.5f, 0f), new Vector2(-220f, 110f), new Vector2(360f, 110f));
+            var ok = Btn(overlay, "Weiter", UX.Accent, () => { overlay.gameObject.SetActive(false); Show(MenuPage.Summon); }, 40f);
+            UIKit.Place((RectTransform)ok.transform, new Vector2(0.5f, 0f), new Vector2(220f, 110f), new Vector2(360f, 110f));
+
+            if (best.def.rarity >= Rarity.Episch) yield return Reveal3D(best);
+        }
+
+        IEnumerator Reveal3D(SummonResult r)
+        {
+            overlay.gameObject.SetActive(false);
+            UX.Clear(page);
+            mm.ShowPreview(r.def, D.Get(r.def.id)?.stage ?? 0, true);
+            var cap = UIKit.Text(page, "Name", $"<color={Look.Hex(Look.RarityColor(r.def.rarity))}>{Look.RarityName(r.def.rarity).ToUpper()}</color>\n<size=130%>{r.def.Name}</size>", 56f, Color.white, TextAlignmentOptions.Bottom, true);
+            UIKit.Anchor(cap.rectTransform, 0f, 0.06f, 1f, 0.3f);
+            cap.rectTransform.offsetMin = cap.rectTransform.offsetMax = Vector2.zero;
+            UX.Outline(cap, 0.3f);
+            yield return new WaitForSeconds(0.4f);
+            var ok = Btn(page, "Weiter", UX.Accent, () => { mm.HidePreview(); Show(MenuPage.Summon); }, 40f);
+            UIKit.Place((RectTransform)ok.transform, new Vector2(0.5f, 0f), new Vector2(0f, 20f), new Vector2(360f, 110f));
+        }
+
+        IEnumerator MoveTo(RectTransform rt, Vector2 to, float time)
+        {
+            Vector2 from = rt.anchoredPosition;
+            for (float t = 0f; t < 1f; t += Time.deltaTime / time)
+            {
+                if (rt == null) yield break;
+                float k = 1f - (1f - t) * (1f - t);
+                rt.anchoredPosition = Vector2.Lerp(from, to, k);
+                rt.localRotation = Quaternion.Euler(0f, 0f, (1f - k) * 25f);
+                yield return null;
+            }
+            if (rt != null) { rt.anchoredPosition = to; rt.localRotation = Quaternion.identity; }
+        }
+
+        IEnumerator Flip(RectTransform rt, float time, bool close)
+        {
+            Vector3 s = rt.localScale;
+            for (float t = 0f; t < 1f; t += Time.deltaTime / time)
+            {
+                rt.localScale = new Vector3(s.x * (close ? 1f - t : t), s.y, 1f);
+                yield return null;
+            }
+        }
+
+        IEnumerator ScaleX(RectTransform rt, float target, float time)
+        {
+            for (float t = 0f; t < 1f; t += Time.deltaTime / time)
+            {
+                rt.localScale = new Vector3(target * t, target, 1f);
+                yield return null;
+            }
+            rt.localScale = Vector3.one * target;
+        }
+
+        // ---------------- Sammlung ----------------
 
         void BuildCollection()
         {
-            var area = PageArea();
-            bool portrait = IsPortrait;
+            var head = Area(0f, 0.9f, 1f, 1f);
+            int owned = 0, total = 0;
+            foreach (var d in CreatureDb.All) if (!d.isBoss) { total++; if (D.Owns(d.id)) owned++; }
+            Heading(head, $"Sammlung  <size=60%>{owned} / {total} entdeckt</size>", 52f);
 
-            // Kopfzeile mit Deck-Zähler und Knöpfen
-            var header = UIKit.Rect("Kopf", area);
-            header.anchorMin = new Vector2(0f, 1f);
-            header.anchorMax = new Vector2(1f, 1f);
-            header.pivot = new Vector2(0.5f, 1f);
-            header.offsetMin = new Vector2(20f, -130f);
-            header.offsetMax = new Vector2(-20f, -10f);
+            // Elementfilter
+            var bar = Area(0.02f, 0.84f, 0.98f, 0.9f);
+            int chips = 11;
+            for (int i = 0; i < chips; i++)
+            {
+                Element? e = i == 0 ? (Element?)null : (Element)(i - 1);
+                bool on = filter == e;
+                var c = i == 0 ? UX.Grey : Look.ElementColor((Element)(i - 1));
+                var b = UIKit.Button(bar, "Filter", i == 0 ? "Alle" : Look.ElementShort((Element)(i - 1)), on ? c : Color.Lerp(c, Color.black, 0.6f),
+                    () => { filter = e; Sound.Play("klick"); Show(MenuPage.Collection); }, 24f);
+                var rt = (RectTransform)b.transform;
+                UIKit.Anchor(rt, i / (float)chips, 0f, (i + 1) / (float)chips, 1f);
+                rt.offsetMin = new Vector2(3f, 4f);
+                rt.offsetMax = new Vector2(-3f, -4f);
+            }
 
-            Color deckColor = P.DeckComplete ? new Color(0.5f, 1f, 0.55f) : new Color(1f, 0.6f, 0.4f);
-            var deckText = UIKit.Text(header, "Deck", $"Deck  {P.deck.Count}/{PlayerProfile.DeckSize}", 48f, deckColor, TextAlignmentOptions.MidlineLeft, true);
-            deckText.rectTransform.anchorMin = new Vector2(0f, 0f);
-            deckText.rectTransform.anchorMax = new Vector2(0.4f, 1f);
-            deckText.rectTransform.offsetMin = deckText.rectTransform.offsetMax = Vector2.zero;
-            deckText.outlineWidth = 0.2f;
-            deckText.outlineColor = new Color32(0, 0, 0, 220);
-
-            var auto = UIKit.Button(header, "Auto", "Auto-Füllen", Blue, () => { P.AutoFillDeck(); ShowPage(Page.Collection); mm.SpawnPals(); }, 32f);
-            var art = (RectTransform)auto.transform;
-            art.anchorMin = new Vector2(0.42f, 0.12f);
-            art.anchorMax = new Vector2(0.7f, 0.88f);
-            art.offsetMin = art.offsetMax = Vector2.zero;
-
-            var clear = UIKit.Button(header, "Leeren", "Deck leeren", Grey, () => { P.deck.Clear(); P.Save(); ShowPage(Page.Collection); }, 32f);
-            var crt = (RectTransform)clear.transform;
-            crt.anchorMin = new Vector2(0.72f, 0.12f);
-            crt.anchorMax = new Vector2(1f, 0.88f);
-            crt.offsetMin = crt.offsetMax = Vector2.zero;
-
-            // Kartenraster zum Scrollen
-            var panel = Panel(area, "Sammlungsfeld");
-            var prt = panel.rectTransform;
-            prt.anchorMin = new Vector2(0f, 0f);
-            prt.anchorMax = new Vector2(1f, 1f);
-            prt.offsetMin = new Vector2(16f, 16f);
-            prt.offsetMax = new Vector2(-16f, -140f);
-
-            var scrollRt = UIKit.Rect("Scroll", panel.transform);
-            UIKit.Stretch(scrollRt, 10, 10, 10, 10);
-            var scroll = scrollRt.gameObject.AddComponent<ScrollRect>();
-            scroll.horizontal = false;
-            scroll.scrollSensitivity = 40f;
-            scroll.movementType = ScrollRect.MovementType.Elastic;
-
-            var viewport = UIKit.Img(scrollRt, "Sichtbereich", null, new Color(0f, 0f, 0f, 0.001f));
-            viewport.raycastTarget = true;
-            UIKit.Stretch(viewport.rectTransform);
-            viewport.gameObject.AddComponent<RectMask2D>();
-
-            var content = UIKit.Rect("Inhalt", viewport.transform);
-            content.anchorMin = new Vector2(0f, 1f);
-            content.anchorMax = new Vector2(1f, 1f);
-            content.pivot = new Vector2(0.5f, 1f);
-            content.offsetMin = content.offsetMax = Vector2.zero;
+            // Raster mit Karten
+            var area = Area(0.02f, 0.01f, 0.98f, 0.83f);
+            var scroll = MakeScroll(area, out var content);
+            var list = new List<CreatureDef>();
+            foreach (var d in CreatureDb.All) if (!d.isBoss && (filter == null || d.element == filter)) list.Add(d);
+            list.Sort((a, b) => D.Owns(a.id) != D.Owns(b.id) ? (D.Owns(a.id) ? -1 : 1) : b.rarity != a.rarity ? b.rarity.CompareTo(a.rarity) : string.Compare(a.Name, b.Name));
 
             Canvas.ForceUpdateCanvases();
-            int cols = portrait ? 3 : 6;
-            float spacing = 22f;
-            float width = viewport.rectTransform.rect.width - 30f;
-            float cellW = (width - spacing * (cols - 1)) / cols;
-            float scale = cellW / CardView.W;
-            float cellH = CardView.H * scale + 46f;
-
-            var grid = content.gameObject.AddComponent<GridLayoutGroup>();
-            grid.cellSize = new Vector2(cellW, cellH);
-            grid.spacing = new Vector2(spacing, spacing);
-            grid.padding = new RectOffset(15, 15, 15, 30);
-            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-            grid.constraintCount = cols;
-            grid.childAlignment = TextAnchor.UpperCenter;
-            var fitter = content.gameObject.AddComponent<ContentSizeFitter>();
-            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-            scroll.viewport = viewport.rectTransform;
-            scroll.content = content;
-
-            var cards = new List<CardData>(CardDatabase.All);
-            cards.Sort((a, b) => a.rarity != b.rarity ? a.rarity.CompareTo(b.rarity) : a.cost.CompareTo(b.cost));
-
-            foreach (var card in cards)
+            float width = area.rect.width;
+            int cols = P ? 3 : 6;
+            float cellW = width / cols;
+            float scale = cellW * 0.92f / CardView.W;
+            float cellH = CardView.H * scale + 20f;
+            content.sizeDelta = new Vector2(0f, Mathf.CeilToInt(list.Count / (float)cols) * cellH + 20f);
+            for (int i = 0; i < list.Count; i++)
             {
-                var cell = UIKit.Rect("Zelle_" + card.name, content);
-                int owned = P.Count(card.id);
-                int inDeck = P.InDeck(card.id);
-
-                var view = CardView.Create(cell, card);
-                view.rt.anchorMin = view.rt.anchorMax = new Vector2(0.5f, 1f);
-                view.rt.pivot = new Vector2(0.5f, 1f);
-                view.rt.anchoredPosition = Vector2.zero;
-                view.rt.localScale = Vector3.one * scale;
-                view.SetPlayable(false, owned == 0);
-                if (owned == 0) view.group.alpha = 0.35f;
-                var c = card;
-                view.button.onClick.AddListener(() => ShowCardInfo(c));
-
-                // Unter der Karte: Besitz / im Deck
-                string line = owned == 0
-                    ? $"<color=#ff9a7a>Fehlt</color> · {card.CraftCost} Staub"
-                    : $"Besitz {owned}/{card.MaxCopies}   ·   <color=#7dff8a>im Deck {inDeck}</color>";
-                var lt = UIKit.Text(cell, "Status", line, 24f, Color.white, TextAlignmentOptions.Center, true);
-                lt.rectTransform.anchorMin = new Vector2(0f, 0f);
-                lt.rectTransform.anchorMax = new Vector2(1f, 0f);
-                lt.rectTransform.pivot = new Vector2(0.5f, 0f);
-                lt.rectTransform.offsetMin = new Vector2(0f, 0f);
-                lt.rectTransform.offsetMax = new Vector2(0f, 40f);
-                lt.enableAutoSizing = true;
-                lt.fontSizeMin = 12f;
-                lt.fontSizeMax = 24f;
-
-                if (inDeck > 0)
+                var d = list[i];
+                var oc = D.Get(d.id);
+                var v = CardView.Create(content, d, oc, oc == null);
+                v.rt.anchorMin = v.rt.anchorMax = new Vector2(0f, 1f);
+                v.rt.anchoredPosition = new Vector2((i % cols + 0.5f) * cellW, -(i / cols + 0.5f) * cellH - 10f);
+                v.rt.localScale = Vector3.one * scale;
+                v.button.onClick.AddListener(() => { Sound.Play("klick"); ShowDetail(d); });
+                if (oc != null && (Progress.CanFuse(D, oc) || (oc.level >= Progress.EvolveLevel && oc.stage < d.MaxStage)))
                 {
-                    var badge = UIKit.Badge(cell, "ImDeck", new Color(0.2f, 0.65f, 0.25f), 56f, inDeck.ToString());
-                    UIKit.Place((RectTransform)badge.transform.parent, new Vector2(1f, 1f), new Vector2(-14f, -14f), new Vector2(56f, 56f));
+                    var dot = UIKit.Img(v.rt, "Hinweis", UIKit.Circle, new Color(1f, 0.3f, 0.25f));
+                    UIKit.Place(dot.rectTransform, new Vector2(1f, 1f), new Vector2(-6f, -6f), new Vector2(34f, 34f));
+                }
+                if (oc != null && System.Array.IndexOf(D.team, d.id) >= 0)
+                {
+                    var tt = UIKit.Text(v.rt, "ImTeam", "IM TEAM", 20f, new Color(0.5f, 1f, 0.6f), TextAlignmentOptions.Center, true);
+                    tt.rectTransform.anchorMin = tt.rectTransform.anchorMax = new Vector2(0.5f, 0f);
+                    tt.rectTransform.anchoredPosition = new Vector2(0f, -4f);
+                    tt.rectTransform.sizeDelta = new Vector2(200f, 30f);
+                    UX.Outline(tt, 0.3f);
                 }
             }
         }
 
-        void ShowCardInfo(CardData card)
+        ScrollRect MakeScroll(RectTransform area, out RectTransform content)
         {
-            var content = OpenOverlay(card.name);
-            Canvas.ForceUpdateCanvases();
-            Rect r = root.rect;
-            float scale = Mathf.Min(r.height * 0.5f / CardView.H, r.width * 0.7f / CardView.W);
-
-            var holder = UIKit.Rect("Karte", content);
-            holder.anchorMin = holder.anchorMax = new Vector2(0.5f, 0.56f);
-            holder.sizeDelta = new Vector2(CardView.W, CardView.H);
-            holder.localScale = Vector3.one * scale;
-            var glow = UIKit.Img(holder, "Leuchten", UIKit.Glow, CardData.RarityColor(card.rarity) * new Color(1f, 1f, 1f, 0.6f));
-            UIKit.Stretch(glow.rectTransform, -70, -70, -70, -70);
-            var view = CardView.Create(holder, card);
-            view.rt.anchorMin = view.rt.anchorMax = new Vector2(0.5f, 0.5f);
-            view.rt.anchoredPosition = Vector2.zero;
-            view.button.interactable = false;
-
-            int owned = P.Count(card.id);
-            int inDeck = P.InDeck(card.id);
-            var info = UIKit.Text(content, "Info",
-                $"<color=#{ColorUtility.ToHtmlStringRGB(CardData.RarityColor(card.rarity))}>{CardData.RarityName(card.rarity)}</color>   ·   Besitz {owned}/{card.MaxCopies}   ·   im Deck {inDeck}   ·   Deck {P.deck.Count}/{PlayerProfile.DeckSize}",
-                32f, Color.white, TextAlignmentOptions.Center, true);
-            info.rectTransform.anchorMin = new Vector2(0f, 0.22f);
-            info.rectTransform.anchorMax = new Vector2(1f, 0.27f);
-            info.rectTransform.offsetMin = new Vector2(20f, 0f);
-            info.rectTransform.offsetMax = new Vector2(-20f, 0f);
-            info.enableAutoSizing = true;
-            info.fontSizeMin = 14f;
-            info.fontSizeMax = 32f;
-
-            var add = SmallButton(content, "+ Ins Deck", Green, new Vector2(0.18f, 0.15f), () =>
-            {
-                if (P.AddToDeck(card.id)) { Refresh(card); }
-                else Toast(P.deck.Count >= PlayerProfile.DeckSize ? "Deck ist voll" : "Keine weitere Kopie verfügbar");
-            });
-            add.interactable = P.CanAddToDeck(card.id);
-
-            var remove = SmallButton(content, "– Aus Deck", Grey, new Vector2(0.5f, 0.15f), () =>
-            {
-                if (P.RemoveFromDeck(card.id)) Refresh(card);
-            });
-            remove.interactable = inDeck > 0;
-
-            bool canCraft = owned < card.MaxCopies;
-            var craft = SmallButton(content, canCraft ? $"Herstellen\n<size=70%>{card.CraftCost} Staub</size>" : "Maximum", new Color(0.55f, 0.3f, 0.85f), new Vector2(0.82f, 0.15f), () =>
-            {
-                if (P.Craft(card)) { Toast($"{card.name} hergestellt!"); Refresh(card); }
-                else Toast("Nicht genug Staub");
-            });
-            craft.interactable = canCraft && P.dust >= card.CraftCost;
-
-            var close = SmallButton(content, "Schließen", Grey, new Vector2(0.5f, 0.05f), () => { CloseOverlay(); ShowPage(Page.Collection); mm.SpawnPals(); });
-            ((RectTransform)close.transform).sizeDelta = new Vector2(420f, 90f);
+            var view = UIKit.Img(area, "Ansicht", UIKit.Rounded, new Color(0f, 0f, 0f, 0.35f));
+            UIKit.Stretch(view.rectTransform);
+            view.raycastTarget = true;
+            view.gameObject.AddComponent<RectMask2D>();
+            var sr = view.gameObject.AddComponent<ScrollRect>();
+            sr.horizontal = false;
+            sr.movementType = ScrollRect.MovementType.Elastic;
+            sr.scrollSensitivity = 40f;
+            content = UIKit.Rect("Inhalt", view.transform);
+            content.anchorMin = new Vector2(0f, 1f);
+            content.anchorMax = new Vector2(1f, 1f);
+            content.pivot = new Vector2(0.5f, 1f);
+            content.anchoredPosition = Vector2.zero;
+            sr.content = content;
+            sr.viewport = view.rectTransform;
+            return sr;
         }
 
-        void Refresh(CardData card)
+        public void ShowDetail(CreatureDef d)
         {
-            ShowCardInfo(card);
-        }
-
-        Button SmallButton(RectTransform parent, string label, Color color, Vector2 anchor, UnityEngine.Events.UnityAction onClick)
-        {
-            var b = UIKit.Button(parent, label, label, color, onClick, 34f);
-            var rt = (RectTransform)b.transform;
-            rt.anchorMin = rt.anchorMax = anchor;
-            rt.sizeDelta = new Vector2(IsPortrait ? 300f : 340f, 110f);
-            rt.anchoredPosition = Vector2.zero;
-            return b;
-        }
-
-        // ------------------------------------------------------------------
-        // Overlay
-        // ------------------------------------------------------------------
-
-        RectTransform OpenOverlay(string title)
-        {
-            for (int i = overlay.childCount - 1; i >= 0; i--) Destroy(overlay.GetChild(i).gameObject);
+            detailDef = d;
+            var oc = D.Get(d.id);
+            UX.Clear(overlay);
             overlay.gameObject.SetActive(true);
-            overlay.SetAsLastSibling();
-            toastRt.SetAsLastSibling();
-            var dim = UIKit.Img(overlay, "Abdunkeln", null, new Color(0.02f, 0.02f, 0.05f, 0.85f));
+            page.gameObject.SetActive(false); // freie Sicht auf die 3D-Vorschau
+            if (oc != null) { if (mm.PreviewDef != d || mm.PreviewStage != oc.stage) mm.ShowPreview(d, oc.stage); }
+            else mm.HidePreview();
+
+            // Ziehfläche zum Drehen der 3D-Vorschau
+            var drag = UIKit.Img(overlay, "Drehen", null, new Color(0f, 0f, 0f, oc != null ? 0.01f : 0.6f));
+            UIKit.Stretch(drag.rectTransform);
+            drag.raycastTarget = true;
+            var rot = drag.gameObject.AddComponent<DragRotate>();
+            rot.onDrag = dx => mm.RotatePreview(-dx * 0.4f);
+
+            var panel = UX.Panel(overlay, "Info", new Color(0.06f, 0.05f, 0.09f, 0.94f));
+            if (P) UIKit.Anchor(panel.rectTransform, 0.02f, 0.01f, 0.98f, 0.5f); else UIKit.Anchor(panel.rectTransform, 0.02f, 0.02f, 0.46f, 0.86f);
+            panel.rectTransform.offsetMin = panel.rectTransform.offsetMax = Vector2.zero;
+            UX.Frame(panel, Look.RarityColor(d.rarity), 3f);
+
+            string title = oc != null ? oc.Name : (d.Name + "  <size=60%>(nicht entdeckt)</size>");
+            var spec = oc != null ? oc.ToSpec(0) : new UnitSpec(d.id, 1, 0);
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"<size=130%><b>{title}</b></size>\n");
+            sb.Append($"<color={Look.Hex(Look.ElementColor(d.element))}>{d.element}</color>  ·  <color={Look.Hex(Look.RarityColor(d.rarity))}>{Look.RarityName(d.rarity)}</color>  ·  {Look.RoleName(d.role)}  ·  {(d.ranged ? "Fernkampf" : "Nahkampf")}\n");
+            if (oc != null) sb.Append($"Stufe <b>{oc.level}</b>/{Stats.MaxLevel(oc.stars)}  <color=#ffd23f>{Look.Stars(oc.stars)}</color>  ·  Kopien {oc.copies}  ·  Entwicklung {oc.stage + 1}/{d.MaxStage + 1}\n");
+            sb.Append($"<size=90%>Leben <b>{Stats.Hp(d, spec)}</b>   Angriff <b>{Stats.Atk(d, spec)}</b>   Verteidigung <b>{Stats.Def(d, spec)}</b>   Tempo <b>{Stats.Spd(d, spec)}</b>   Krit <b>{d.crit * 100f:0}%</b></size>\n\n");
+            sb.Append($"<color=#ffd23f><b>Spezial: {d.skill.name}</b></color>\n<size=90%>{d.skill.text}</size>\n");
+            if (d.passive != Passive.Keine) sb.Append($"<color=#9fd3ff><b>Passiv</b></color>\n<size=90%>{CreatureDef.PassiveText(d.passive)}</size>\n");
+            var strong = ElementChart.StrongAgainst(d.element);
+            var sn = new List<string>();
+            foreach (var e in strong) sn.Add(e.ToString());
+            sb.Append($"<size=85%>Stark gegen: {string.Join(", ", sn)}</size>\n");
+            sb.Append($"<i><size=85%><color=#c9b99a>{d.description}</color></size></i>");
+            var info = UIKit.Text(panel.transform, "Text", sb.ToString(), 30f, Color.white, TextAlignmentOptions.TopLeft);
+            UIKit.Stretch(info.rectTransform, 36, 260, 36, 30);
+            info.enableAutoSizing = true; info.fontSizeMin = 14; info.fontSizeMax = 32;
+
+            if (oc != null)
+            {
+                // EP-Balken
+                var xp = UX.Bar(panel.transform, "EP", new Color(0.4f, 0.75f, 1f), new Color(1f, 1f, 1f, 0.08f));
+                var xr = (RectTransform)xp.transform.parent;
+                xr.anchorMin = new Vector2(0f, 0f);
+                xr.anchorMax = new Vector2(1f, 0f);
+                xr.anchoredPosition = new Vector2(0f, 230f);
+                xr.sizeDelta = new Vector2(-72f, 26f);
+                bool maxed = oc.level >= Stats.MaxLevel(oc.stars);
+                xp.fillAmount = maxed ? 1f : oc.xp / (float)Progress.XpToNext(oc.level);
+                var xt = UIKit.Text(xr, "W", maxed ? "Höchststufe – Fusion erhöht die Grenze" : $"{oc.xp} / {Progress.XpToNext(oc.level)} EP", 18f, Color.white, TextAlignmentOptions.Center, true);
+                UIKit.Stretch(xt.rectTransform);
+
+                var row = UIKit.Rect("Aktionen", panel.transform);
+                row.anchorMin = new Vector2(0f, 0f);
+                row.anchorMax = new Vector2(1f, 0f);
+                row.pivot = new Vector2(0.5f, 0f);
+                row.anchoredPosition = new Vector2(0f, 110f);
+                row.sizeDelta = new Vector2(-40f, 100f);
+                AddAction(row, 0, $"Trank ({D.potions})", new Color(0.25f, 0.6f, 0.4f), () =>
+                {
+                    if (Progress.UsePotion(D, oc, out var err)) { Game.Save(); Sound.Play("heilung"); } else Toast(err);
+                    ShowDetail(d); RefreshTop();
+                });
+                bool canStar = oc.stars < Stats.MaxStars;
+                AddAction(row, 1, canStar ? $"Fusion {oc.copies}/{Progress.CopiesForStar(oc.stars)}" : "Max. Sterne", new Color(0.8f, 0.6f, 0.15f), () =>
+                {
+                    if (Progress.Fuse(D, oc, out var err)) { Game.Save(); Sound.Play("selten"); Toast($"{oc.Name} hat jetzt {oc.stars} Sterne!"); mm.ShowPreview(d, oc.stage, true); }
+                    else Toast(err + $" (Gold: {Progress.GoldForStar(oc.stars)})");
+                    ShowDetail(d); RefreshTop();
+                });
+                AddAction(row, 2, oc.stage < d.MaxStage ? "Entwickeln" : "Entwickelt", new Color(0.6f, 0.3f, 0.85f), () =>
+                {
+                    if (Progress.Evolve(D, oc, out var err)) { Game.Save(); Sound.Play("selten"); Toast($"Entwickelt zu {oc.Name}!"); mm.ShowPreview(d, oc.stage, true); }
+                    else Toast(err);
+                    ShowDetail(d); RefreshTop();
+                });
+            }
+
+            var close = Btn(panel.transform, "Schließen", UX.Grey, () => { overlay.gameObject.SetActive(false); detailDef = null; mm.HidePreview(); Show(MenuPage.Collection); }, 34f);
+            UIKit.Place((RectTransform)close.transform, new Vector2(0.5f, 0f), new Vector2(0f, 50f), new Vector2(300f, 80f));
+        }
+
+        void AddAction(RectTransform row, int i, string label, Color c, UnityEngine.Events.UnityAction a)
+        {
+            var b = Btn(row, label, c, a, 28f);
+            var rt = (RectTransform)b.transform;
+            UIKit.Anchor(rt, i / 3f, 0f, (i + 1) / 3f, 1f);
+            rt.offsetMin = new Vector2(6f, 0f);
+            rt.offsetMax = new Vector2(-6f, 0f);
+        }
+
+        // ---------------- Team ----------------
+
+        void BuildTeam()
+        {
+            var head = Area(0f, 0.9f, 1f, 1f);
+            Heading(head, "Teamaufstellung", 52f);
+
+            var grid = P ? Area(0.04f, 0.56f, 0.96f, 0.9f) : Area(0.02f, 0.3f, 0.5f, 0.9f);
+            var gbg = UX.Panel(grid, "Formation", new Color(0.05f, 0.1f, 0.05f, 0.55f));
+            UIKit.Stretch(gbg.rectTransform);
+            // Gegner wären oben: vordere Reihe oben anzeigen
+            for (int s = 0; s < 6; s++)
+            {
+                int slot = s;
+                int col = s % 3, row = s / 3;
+                var cell = UIKit.Rect("Feld" + s, grid);
+                UIKit.Anchor(cell, col / 3f, row == 0 ? 0.5f : 0f, (col + 1) / 3f, row == 0 ? 1f : 0.5f);
+                cell.offsetMin = new Vector2(10f, 10f);
+                cell.offsetMax = new Vector2(-10f, -34f);
+                var bg = UIKit.Img(cell, "Grund", UIKit.Rounded, s == selectedSlot ? new Color(1f, 0.8f, 0.3f, 0.5f) : new Color(1f, 1f, 1f, 0.08f));
+                UIKit.Stretch(bg.rectTransform);
+                bg.raycastTarget = true;
+                var btn = bg.gameObject.AddComponent<Button>();
+                btn.onClick.AddListener(() =>
+                {
+                    Sound.Play("klick");
+                    if (selectedSlot == slot && D.team[slot] != null) { D.SetTeamSlot(slot, null); Game.Save(); mm.SpawnPals(); }
+                    selectedSlot = selectedSlot == slot ? -1 : slot;
+                    Show(MenuPage.Team);
+                });
+                var oc = D.Get(D.team[s]);
+                if (oc != null)
+                {
+                    var portrait = MonsterModel.Portrait(oc.Def);
+                    var raw = UIKit.Rect("Bild", cell).gameObject.AddComponent<RawImage>();
+                    UIKit.Stretch(raw.rectTransform, 6, 44, 6, 6);
+                    raw.texture = portrait;
+                    raw.uvRect = new Rect(0.1f, 0.15f, 0.8f, 0.75f);
+                    raw.raycastTarget = false;
+                    var chip = UX.ElementChip(cell, oc.Def.element, 40f);
+                    chip.anchorMin = chip.anchorMax = new Vector2(0f, 1f);
+                    chip.anchoredPosition = new Vector2(26f, -26f);
+                    var nm = UIKit.Text(cell, "Name", $"{oc.Name} <size=80%>Lv{oc.level}</size>", 24f, Color.white, TextAlignmentOptions.Bottom, true);
+                    UIKit.Stretch(nm.rectTransform, 4, 4, 4, 0);
+                    nm.enableAutoSizing = true; nm.fontSizeMin = 12; nm.fontSizeMax = 24;
+                    UX.Outline(nm);
+                    if (slot == selectedSlot)
+                    {
+                        var rm = UIKit.Text(cell, "Entfernen", "nochmal tippen = entfernen", 16f, new Color(1f, 0.8f, 0.6f), TextAlignmentOptions.Top);
+                        UIKit.Stretch(rm.rectTransform, 0, 0, 0, -22);
+                    }
+                }
+                else
+                {
+                    var plus = UIKit.Text(cell, "Leer", "+", 80f, new Color(1f, 1f, 1f, 0.3f), TextAlignmentOptions.Center, true);
+                    UIKit.Stretch(plus.rectTransform);
+                }
+                if (col == 0)
+                {
+                    var rl = UIKit.Text(grid, "Reihe", row == 0 ? "VORNE (Nahkampf, Tanks)" : "HINTEN (Fernkampf, Heiler)", 22f, new Color(1f, 1f, 1f, 0.7f), TextAlignmentOptions.TopLeft, true);
+                    UIKit.Anchor(rl.rectTransform, 0f, row == 0 ? 0.5f : 0f, 1f, row == 0 ? 1f : 0.5f);
+                    rl.rectTransform.offsetMin = new Vector2(16f, 0f);
+                    rl.rectTransform.offsetMax = new Vector2(0f, -4f);
+                }
+            }
+
+            // Synergien und Kraft
+            var syn = P ? Area(0.04f, 0.42f, 0.96f, 0.555f) : Area(0.02f, 0.02f, 0.5f, 0.29f);
+            var sbg = UX.Panel(syn, "Synergien", UX.PanelDark);
+            UIKit.Stretch(sbg.rectTransform);
+            var team = D.BuildTeam();
+            var list = Synergies.For(team);
+            var sb = new System.Text.StringBuilder($"<b>Kraft {TeamPower(team):N0}</b>   ·   {D.TeamCount()}/6 Kreaturen\n");
+            if (list.Count == 0) sb.Append("<size=80%><color=#bbbbcc>Keine Synergien. Tipp: 2–3 Kreaturen gleichen Elements oder Tank + Heiler.</color></size>");
+            foreach (var s in list) sb.Append($"<size=80%><color=#ffd23f>{s.name}</color>: {s.text}</size>   ");
+            var st = UIKit.Text(syn, "T", sb.ToString(), 28f, Color.white, TextAlignmentOptions.TopLeft);
+            UIKit.Stretch(st.rectTransform, 24, 10, 24, 10);
+            st.enableAutoSizing = true; st.fontSizeMin = 14; st.fontSizeMax = 28;
+
+            // Auswahl
+            var pick = P ? Area(0.02f, 0.11f, 0.98f, 0.41f) : Area(0.52f, 0.12f, 0.98f, 0.9f);
+            MakeScroll(pick, out var content);
+            Canvas.ForceUpdateCanvases();
+            var owned = new List<OwnedCreature>(D.creatures);
+            owned.Sort((a, b) => Stats.Power(b.Def, b.ToSpec(0)).CompareTo(Stats.Power(a.Def, a.ToSpec(0))));
+            int cols = P ? 4 : 4;
+            float cellW = pick.rect.width / cols;
+            float scale = cellW * 0.9f / CardView.W;
+            float cellH = CardView.H * scale + 14f;
+            content.sizeDelta = new Vector2(0f, Mathf.CeilToInt(owned.Count / (float)cols) * cellH + 14f);
+            for (int i = 0; i < owned.Count; i++)
+            {
+                var oc = owned[i];
+                var v = CardView.Create(content, oc.Def, oc);
+                v.rt.anchorMin = v.rt.anchorMax = new Vector2(0f, 1f);
+                v.rt.anchoredPosition = new Vector2((i % cols + 0.5f) * cellW, -(i / cols + 0.5f) * cellH - 7f);
+                v.rt.localScale = Vector3.one * scale;
+                bool inTeam = System.Array.IndexOf(D.team, oc.id) >= 0;
+                if (inTeam) v.group.alpha = 0.45f;
+                v.button.onClick.AddListener(() =>
+                {
+                    Sound.Play("klick");
+                    int slot = selectedSlot;
+                    if (slot < 0)
+                    {
+                        // freies Feld passend zur Rolle suchen
+                        bool front = oc.Def.role == Role.Tank || (!oc.Def.ranged && oc.Def.role == Role.Angreifer);
+                        int[] order = front ? new[] { 1, 0, 2, 4, 3, 5 } : new[] { 4, 3, 5, 1, 0, 2 };
+                        foreach (var o in order) if (D.Get(D.team[o]) == null) { slot = o; break; }
+                    }
+                    if (slot < 0) { Toast("Team ist voll – tippe zuerst auf ein Feld."); return; }
+                    D.SetTeamSlot(slot, oc.id);
+                    selectedSlot = -1;
+                    Game.Save();
+                    mm.SpawnPals();
+                    Show(MenuPage.Team);
+                });
+            }
+
+            var auto = Btn(page, "Auto-Aufstellung", UX.Blue, AutoTeam, 32f);
+            var ar = (RectTransform)auto.transform;
+            if (P) UIKit.Place(ar, new Vector2(0.5f, 0f), new Vector2(-240f, 70f), new Vector2(420f, 100f));
+            else UIKit.Place(ar, new Vector2(0.75f, 0f), new Vector2(-240f, 60f), new Vector2(420f, 90f));
+            var fight = Btn(page, "Zur Kampagne", UX.Accent, () => Show(MenuPage.Campaign), 32f);
+            var fr = (RectTransform)fight.transform;
+            if (P) UIKit.Place(fr, new Vector2(0.5f, 0f), new Vector2(240f, 70f), new Vector2(420f, 100f));
+            else UIKit.Place(fr, new Vector2(0.75f, 0f), new Vector2(240f, 60f), new Vector2(420f, 90f));
+        }
+
+        void AutoTeam()
+        {
+            var list = new List<OwnedCreature>(D.creatures);
+            list.Sort((a, b) => Stats.Power(b.Def, b.ToSpec(0)).CompareTo(Stats.Power(a.Def, a.ToSpec(0))));
+            for (int i = 0; i < 6; i++) D.team[i] = null;
+            int f = 0, bk = 0;
+            int[] front = { 1, 0, 2 }, back = { 4, 3, 5 };
+            foreach (var c in list)
+            {
+                if (f + bk >= 6) break;
+                bool wantFront = c.Def.role == Role.Tank || (!c.Def.ranged && c.Def.role == Role.Angreifer);
+                if (wantFront && f < 3) D.team[front[f++]] = c.id;
+                else if (!wantFront && bk < 3) D.team[back[bk++]] = c.id;
+                else if (f < 3) D.team[front[f++]] = c.id;
+                else if (bk < 3) D.team[back[bk++]] = c.id;
+            }
+            Game.Save();
+            mm.SpawnPals();
+            Show(MenuPage.Team);
+            Toast("Stärkste Kreaturen aufgestellt.");
+        }
+
+        // ---------------- Einstellungen ----------------
+
+        void BuildSettings()
+        {
+            var area = P ? Area(0.05f, 0.03f, 0.95f, 0.97f) : Area(0.15f, 0.03f, 0.85f, 0.97f);
+            var bg = UX.Panel(area, "Einstellungen", UX.PanelDark);
+            UIKit.Stretch(bg.rectTransform);
+            Heading(area, "Einstellungen", 56f).rectTransform.anchoredPosition = new Vector2(0f, -20f);
+
+            Slider(area, 0, "Musik", Sound.MusicVolume, v => { Sound.MusicVolume = v; Game.Save(); });
+            Slider(area, 1, "Effekte", Sound.SfxVolume, v => { Sound.SfxVolume = v; Game.Save(); });
+
+            var spd = Btn(area, $"Kampftempo: {D.battleSpeed}x", UX.Blue, () => { D.battleSpeed = D.battleSpeed >= 3 ? 1 : D.battleSpeed + 1; Game.Save(); Show(MenuPage.Settings); }, 32f);
+            UIKit.Place((RectTransform)spd.transform, new Vector2(0.5f, 1f), new Vector2(0f, -430f), new Vector2(520f, 90f));
+
+            int owned = D.creatures.Count;
+            var prof = UIKit.Text(area, "Profil",
+                $"<b>Profil: {D.playerName}</b>\nKämpfe {D.battles}  ·  Siege {D.wins}  ·  Beschwörungen {D.summons}  ·  Kreaturen {owned}\n" +
+                $"Kampagne: {Campaign.RegionNames[0]} {D.regionProgress[0]}/{Campaign.StagesPerRegion}, {Campaign.RegionNames[1]} {D.regionProgress[1]}/{Campaign.StagesPerRegion}",
+                28f, Color.white, TextAlignmentOptions.Center);
+            UIKit.Place(prof.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 420f), new Vector2(900f, 180f));
+
+            var credits = UIKit.Text(area, "Credits",
+                "<size=80%>3D-Modelle: Quaternius (CC0) · Klänge und Musik: im Spiel erzeugt (Platzhalter)\nOnline-Funktionen: noch nicht verbunden (Server folgt)</size>",
+                26f, new Color(1f, 1f, 1f, 0.6f), TextAlignmentOptions.Center);
+            UIKit.Place(credits.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 240f), new Vector2(900f, 120f));
+
+            var reset = Btn(area, "Spielstand zurücksetzen", UX.Red, () =>
+            {
+                var panel = OpenOverlay("Wirklich zurücksetzen?", new Vector2(820f, 560f));
+                var t = UIKit.Text(panel, "T", "Alle Kreaturen, Fortschritte und Währungen gehen verloren.", 32f, Color.white, TextAlignmentOptions.Center);
+                UIKit.Place(t.rectTransform, new Vector2(0.5f, 0.55f), Vector2.zero, new Vector2(700f, 160f));
+                var yes = Btn(panel, "Ja, zurücksetzen", UX.Red, () => { Game.Reset(); overlay.gameObject.SetActive(false); mm.SpawnPals(); Show(MenuPage.Home); Toast("Neuer Spielstand angelegt."); }, 32f);
+                UIKit.Place((RectTransform)yes.transform, new Vector2(0.5f, 0f), new Vector2(0f, 150f), new Vector2(460f, 100f));
+            }, 30f);
+            UIKit.Place((RectTransform)reset.transform, new Vector2(0.5f, 0f), new Vector2(0f, 100f), new Vector2(520f, 90f));
+        }
+
+        void Slider(RectTransform parent, int i, string label, float value, System.Action<float> onChange)
+        {
+            var row = UIKit.Rect(label, parent);
+            row.anchorMin = new Vector2(0.1f, 1f);
+            row.anchorMax = new Vector2(0.9f, 1f);
+            row.pivot = new Vector2(0.5f, 1f);
+            row.anchoredPosition = new Vector2(0f, -150f - i * 130f);
+            row.sizeDelta = new Vector2(0f, 110f);
+            var t = UIKit.Text(row, "Name", label, 34f, Color.white, TextAlignmentOptions.MidlineLeft, true);
+            UIKit.Anchor(t.rectTransform, 0f, 0f, 0.3f, 1f);
+            t.rectTransform.offsetMin = t.rectTransform.offsetMax = Vector2.zero;
+
+            var track = UIKit.Img(row, "Spur", UIKit.Rounded, new Color(1f, 1f, 1f, 0.12f));
+            UIKit.Anchor(track.rectTransform, 0.32f, 0.35f, 1f, 0.65f);
+            track.rectTransform.offsetMin = track.rectTransform.offsetMax = Vector2.zero;
+            var fillArea = UIKit.Rect("Fuellbereich", track.transform);
+            UIKit.Stretch(fillArea);
+            var fill = UIKit.Img(fillArea, "Fuellung", UIKit.Rounded, UX.Accent);
+            UIKit.Stretch(fill.rectTransform);
+            var handleArea = UIKit.Rect("Griffbereich", track.transform);
+            UIKit.Stretch(handleArea, 20, 0, 20, 0);
+            var handle = UIKit.Img(handleArea, "Griff", UIKit.Circle, Color.white);
+            handle.rectTransform.sizeDelta = new Vector2(60f, 60f);
+            var s = track.gameObject.AddComponent<UnityEngine.UI.Slider>();
+            s.fillRect = fill.rectTransform;
+            s.handleRect = handle.rectTransform;
+            s.targetGraphic = handle;
+            s.minValue = 0f;
+            s.maxValue = 1f;
+            s.value = value;
+            s.onValueChanged.AddListener(v => onChange(v));
+        }
+
+        // ------------------------------------------------------------------
+        // Overlay-Fenster
+        // ------------------------------------------------------------------
+
+        RectTransform OpenOverlay(string title, Vector2 size)
+        {
+            overlay.gameObject.SetActive(true);
+            UX.Clear(overlay);
+            var dim = UIKit.Img(overlay, "Abdunkeln", null, new Color(0f, 0f, 0f, 0.6f));
             UIKit.Stretch(dim.rectTransform);
             dim.raycastTarget = true;
-            var content = UIKit.Rect("Inhalt", overlay);
-            UIKit.Stretch(content);
-            if (!string.IsNullOrEmpty(title))
-            {
-                var t = UIKit.Text(content, "Titel", title, 60f, Gold, TextAlignmentOptions.Center, true);
-                t.rectTransform.anchorMin = new Vector2(0f, 0.88f);
-                t.rectTransform.anchorMax = new Vector2(1f, 0.96f);
-                t.rectTransform.offsetMin = t.rectTransform.offsetMax = Vector2.zero;
-                t.outlineWidth = 0.2f;
-                t.outlineColor = new Color32(0, 0, 0, 200);
-            }
-            return content;
+            var panel = UX.Panel(overlay, "Fenster", new Color(0.08f, 0.07f, 0.12f, 0.97f));
+            UIKit.Place(panel.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, size);
+            UX.Frame(panel, UX.Gold, 3f);
+            Heading(panel.transform, title, 48f).rectTransform.anchoredPosition = new Vector2(0f, -24f);
+            var close = Btn(panel.transform, "Schließen", UX.Grey, () => { overlay.gameObject.SetActive(false); Show(current); }, 32f);
+            UIKit.Place((RectTransform)close.transform, new Vector2(0.5f, 0f), new Vector2(0f, 60f), new Vector2(300f, 84f));
+            return panel.rectTransform;
         }
+    }
 
-        void CloseOverlay()
-        {
-            if (overlay == null) return;
-            for (int i = overlay.childCount - 1; i >= 0; i--) Destroy(overlay.GetChild(i).gameObject);
-            overlay.gameObject.SetActive(false);
-        }
-
-        Button OverlayButton(RectTransform content, string label, Color color, float xFrac, Action onClick)
-        {
-            var b = UIKit.Button(content, label, label, color, () => onClick?.Invoke(), 40f);
-            var rt = (RectTransform)b.transform;
-            rt.anchorMin = rt.anchorMax = new Vector2(xFrac, 0.1f);
-            rt.sizeDelta = new Vector2(440f, 110f);
-            rt.anchoredPosition = Vector2.zero;
-            return b;
-        }
+    /// <summary>Wandelt Ziehen in eine Drehung der 3D-Vorschau um.</summary>
+    public class DragRotate : MonoBehaviour, IDragHandler
+    {
+        public System.Action<float> onDrag;
+        public void OnDrag(PointerEventData e) => onDrag?.Invoke(e.delta.x);
     }
 }

@@ -21,7 +21,10 @@ namespace Kesselwerk
         public static readonly string[] IdleKeys = { "Idle", "Flying" };
         public static readonly string[] AttackKeys = { "Bite_Front", "Attack", "Bite_InPlace" };
         public static readonly string[] HitKeys = { "HitRecieve", "HitReceive", "Hit" };
-        public static readonly string[] DeathKeys = { "Death" };
+        public static readonly string[] DeathKeys = { "Death", "Dead" };
+        public static readonly string[] WalkKeys = { "Walk", "Run", "Running", "Fast_Flying", "Flying", "Fly" };
+        public static readonly string[] SpecialKeys = { "Punch", "HeadButt", "Headbutt", "Bite_InPlace", "Attack", "Bite_Front", "Jump" };
+        public static readonly string[] VictoryKeys = { "Dance", "Yes", "Jump", "Victory", "Idle" };
 
         public void Init(Animator animator, AnimationClip[] allClips)
         {
