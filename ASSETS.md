@@ -5,7 +5,8 @@ Erlaubt sind nur Lizenzen, die kommerzielle Nutzung erlauben (bevorzugt CC0).
 
 | Asset | Urheber | Quelle | Lizenz | Verwendet für | Hinzugefügt am |
 |---|---|---|---|---|---|
-| _(noch keine)_ | | | | | |
+| Textured Cute Monster Pack (Crab, Tree, Ghost, Demon, Cactus, Alien, Yeti – FBX + Texturen) | Quaternius | https://opengameart.org/content/textured-cute-monster-pack | CC0 | Monster-Modelle der Karten | 2026-11-26 |
+| LowPoly Animated Monsters (Dragon – FBX) | Quaternius | https://opengameart.org/content/lowpoly-animated-monsters | CC0 | Modell „Donnerdrache“ | 2026-11-26 |
 
 ## Geplante Assets
 

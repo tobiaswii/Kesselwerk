@@ -385,11 +385,11 @@ namespace Kesselwerk
         {
             if (cardStyle != null) return;
             cardStyle = new GUIStyle(GUI.skin.button);
-            titleStyle = new GUIStyle(GUI.skin.label) { fontSize = 13, fontStyle = FontStyle.Bold, alignment = TextAnchor.UpperCenter, wordWrap = true };
+            titleStyle = new GUIStyle(GUI.skin.label) { fontSize = 13, fontStyle = FontStyle.Bold, alignment = TextAnchor.UpperCenter, wordWrap = false, clipping = TextClipping.Clip };
             titleStyle.normal.textColor = Color.white;
             smallStyle = new GUIStyle(GUI.skin.label) { fontSize = 10, fontStyle = FontStyle.Italic, alignment = TextAnchor.UpperCenter, wordWrap = true };
             smallStyle.normal.textColor = new Color(0.95f, 0.95f, 0.95f);
-            statStyle = new GUIStyle(GUI.skin.label) { fontSize = 13, fontStyle = FontStyle.Bold, alignment = TextAnchor.LowerCenter };
+            statStyle = new GUIStyle(GUI.skin.label) { fontSize = 13, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, padding = new RectOffset(0, 0, 0, 0) };
             statStyle.normal.textColor = Color.white;
             costStyle = new GUIStyle(GUI.skin.box) { fontSize = 14, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
             costStyle.normal.textColor = new Color(0.6f, 0.9f, 1f);
@@ -416,14 +416,14 @@ namespace Kesselwerk
             // Obere Leiste: Gegner
             GUI.Box(new Rect(0, 0, vw, TopBar), GUIContent.none);
             GUI.Label(new Rect(12, 0, vw - 24, TopBar),
-                $"Gegner   HP {Mathf.Max(0, enemy.hp)}   Energie {enemy.energy}/{enemy.maxEnergy}   Hand {enemy.hand.Count}", infoStyle);
+                $"Gegner   Leben {Mathf.Max(0, enemy.hp)}   Karten auf der Hand {enemy.hand.Count}", infoStyle);
 
             // Untere Leiste: du
             float handH = portrait ? HandPortrait : HandLandscape;
             float barY = vh - handH;
             GUI.Box(new Rect(0, barY, vw, handH), GUIContent.none);
             GUI.Label(new Rect(12, barY + 4, vw - 160, 34),
-                $"Du   HP {Mathf.Max(0, player.hp)}   Energie {player.energy}/{player.maxEnergy}   Deck {player.deck.Count}", infoStyle);
+                $"Du   Leben {Mathf.Max(0, player.hp)}   Energie {player.energy}/{player.maxEnergy}   Deck {player.deck.Count}", infoStyle);
 
             GUI.enabled = playerTurn && !busy && !gameOver;
             if (GUI.Button(new Rect(vw - 140, barY + 4, 128, 34), "Zug beenden", buttonStyle))
@@ -474,13 +474,44 @@ namespace Kesselwerk
                 }
                 GUI.backgroundColor = Color.white;
 
-                GUI.Box(new Rect(r.x + 3, r.y + 3, 24, 24), card.cost.ToString(), costStyle);
-                GUI.Label(new Rect(r.x + 4, r.y + 28, r.width - 8, 34), card.name, titleStyle);
+                // Kosten (blau, oben links)
+                DrawStatBadge(new Rect(r.x + 3, r.y + 3, 24, 24), card.cost.ToString(), new Color(0.2f, 0.45f, 0.95f));
+
+                // Name (Schrift wird bei langen Namen / schmalen Karten kleiner)
+                titleStyle.fontSize = Mathf.Clamp(Mathf.RoundToInt(cardW / Mathf.Max(6, card.name.Length) * 1.7f), 9, 14);
+                GUI.Label(new Rect(r.x + 2, r.y + 28, r.width - 4, 22), card.name, titleStyle);
+
                 if (cardH > 120f)
-                    GUI.Label(new Rect(r.x + 4, r.y + 60, r.width - 8, r.height - 90), card.text, smallStyle);
-                GUI.Label(new Rect(r.x, r.y, r.width, r.height - 4), $"ATK {card.attack}   HP {card.health}", statStyle);
+                    GUI.Label(new Rect(r.x + 4, r.y + 52, r.width - 8, r.height - 82), card.text, smallStyle);
+
+                // Angriff (rot, unten links) und Leben (grün, unten rechts)
+                DrawStatBadge(new Rect(r.x + 3, r.yMax - 27, 24, 24), card.attack.ToString(), new Color(0.85f, 0.2f, 0.2f));
+                DrawStatBadge(new Rect(r.xMax - 27, r.yMax - 27, 24, 24), card.health.ToString(), new Color(0.2f, 0.7f, 0.25f));
                 GUI.color = Color.white;
             }
+        }
+
+        static Texture2D whiteTex;
+
+        static void DrawRect(Rect r, Color color)
+        {
+            if (whiteTex == null)
+            {
+                whiteTex = new Texture2D(1, 1);
+                whiteTex.SetPixel(0, 0, Color.white);
+                whiteTex.Apply();
+            }
+            var old = GUI.color;
+            GUI.color = new Color(color.r, color.g, color.b, color.a * old.a);
+            GUI.DrawTexture(r, whiteTex);
+            GUI.color = old;
+        }
+
+        void DrawStatBadge(Rect r, string text, Color color)
+        {
+            DrawRect(r, new Color(0f, 0f, 0f, 0.7f));
+            DrawRect(new Rect(r.x + 1.5f, r.y + 1.5f, r.width - 3f, r.height - 3f), color);
+            GUI.Label(r, text, statStyle);
         }
 
         void DrawWorldLabels()
@@ -492,11 +523,24 @@ namespace Kesselwerk
                 foreach (var c in side.slots)
                 {
                     if (c == null) continue;
-                    Vector3 sp = cam.WorldToScreenPoint(c.transform.position + Vector3.up * 2.0f);
+                    Vector3 sp = cam.WorldToScreenPoint(c.transform.position + Vector3.up * (1.3f + c.card.cost * 0.12f));
                     if (sp.z < 0) continue;
                     float gx = sp.x / uiScale;
                     float gy = (Screen.height - sp.y) / uiScale;
-                    GUI.Box(new Rect(gx - 42, gy - 12, 84, 24), $"{c.attack} / {Mathf.Max(0, c.health)}", worldStatStyle);
+
+                    // Lebensbalken
+                    float frac = Mathf.Clamp01(c.health / (float)Mathf.Max(1, c.maxHealth));
+                    var bar = new Rect(gx - 30, gy - 4, 60, 8);
+                    DrawRect(bar, new Color(0f, 0f, 0f, 0.6f));
+                    DrawRect(new Rect(bar.x + 1, bar.y + 1, (bar.width - 2) * frac, bar.height - 2),
+                             Color.Lerp(new Color(0.9f, 0.2f, 0.2f), new Color(0.25f, 0.85f, 0.3f), frac));
+
+                    // Angriff links, Leben rechts
+                    DrawStatBadge(new Rect(gx - 54, gy - 11, 22, 22), c.attack.ToString(), new Color(0.85f, 0.2f, 0.2f));
+                    DrawStatBadge(new Rect(gx + 32, gy - 11, 22, 22), Mathf.Max(0, c.health).ToString(), new Color(0.2f, 0.7f, 0.25f));
+
+                    if (c.justSummoned && side.isPlayer)
+                        GUI.Label(new Rect(gx - 40, gy + 6, 80, 18), "schläft", smallStyle);
                 }
             }
 

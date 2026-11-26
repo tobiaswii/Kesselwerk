@@ -17,8 +17,10 @@ namespace Kesselwerk
         public int health;
         public Color color;
         public BodyShape shape;
+        /// <summary>Name des 3D-Modells unter Resources/Monsters (leer = Platzhalter aus Grundformen).</summary>
+        public string model;
 
-        public CardData(string id, string name, int cost, int attack, int health, Color color, BodyShape shape, string text)
+        public CardData(string id, string name, int cost, int attack, int health, Color color, BodyShape shape, string text, string model = null)
         {
             this.id = id;
             this.name = name;
@@ -28,6 +30,7 @@ namespace Kesselwerk
             this.color = color;
             this.shape = shape;
             this.text = text;
+            this.model = model;
         }
     }
 
@@ -36,14 +39,14 @@ namespace Kesselwerk
     {
         public static readonly List<CardData> All = new List<CardData>
         {
-            new CardData("kiesel",  "Kieselkobold",    1, 1, 2, new Color(0.62f, 0.62f, 0.66f), BodyShape.Sphere,  "Klein, grau, nachtragend."),
-            new CardData("moos",    "Moosmampf",       2, 1, 4, new Color(0.35f, 0.70f, 0.30f), BodyShape.Capsule, "Frisst alles. Auch Ärger."),
-            new CardData("frost",   "Frostfloh",       2, 3, 1, new Color(0.55f, 0.85f, 1.00f), BodyShape.Sphere,  "Sticht zu, bevor er friert."),
-            new CardData("glut",    "Glutbrocken",     3, 3, 3, new Color(1.00f, 0.50f, 0.15f), BodyShape.Cube,    "Heißer als Omas Bügeleisen."),
-            new CardData("schlamm", "Schlammschnecki", 3, 2, 5, new Color(0.55f, 0.38f, 0.22f), BodyShape.Capsule, "Langsam. Aber er kommt an."),
-            new CardData("zapf",    "Zapfzahn",        4, 4, 3, new Color(1.00f, 0.88f, 0.20f), BodyShape.Cube,    "Beißt in alles, was Strom hat."),
-            new CardData("rauch",   "Rauchrabe",       4, 3, 5, new Color(0.45f, 0.35f, 0.60f), BodyShape.Capsule, "Riecht nach Grillabend."),
-            new CardData("donner",  "Donnerdackel",    6, 6, 6, new Color(0.95f, 0.75f, 0.25f), BodyShape.Capsule, "Bellt nicht. Blitzt."),
+            new CardData("kiesel",  "Kneifkrebs",     1, 1, 2, new Color(0.90f, 0.40f, 0.30f), BodyShape.Sphere,  "Klein, rot, nachtragend.",          "Crab"),
+            new CardData("moos",    "Moosmampf",      2, 1, 4, new Color(0.35f, 0.70f, 0.30f), BodyShape.Capsule, "Frisst alles. Auch Ärger.",         "Tree"),
+            new CardData("frost",   "Frostgeist",     2, 3, 1, new Color(0.55f, 0.85f, 1.00f), BodyShape.Sphere,  "Kalt. Durchsichtig. Gemein.",       "Ghost"),
+            new CardData("glut",    "Glutteufel",     3, 3, 3, new Color(1.00f, 0.50f, 0.15f), BodyShape.Cube,    "Heißer als Omas Bügeleisen.",       "Demon"),
+            new CardData("kaktus",  "Pieksi",         3, 2, 5, new Color(0.40f, 0.75f, 0.35f), BodyShape.Capsule, "Umarmungen nicht empfohlen.",       "Cactus"),
+            new CardData("zapf",    "Zapfzahn",       4, 4, 3, new Color(0.60f, 0.90f, 0.40f), BodyShape.Cube,    "Beißt in alles, was Strom hat.",    "Alien"),
+            new CardData("yeti",    "Schneestampfer", 4, 3, 5, new Color(0.85f, 0.90f, 1.00f), BodyShape.Capsule, "Kalte Füße, warmes Herz.",          "Yeti"),
+            new CardData("donner",  "Donnerdrache",   6, 6, 6, new Color(0.95f, 0.75f, 0.25f), BodyShape.Capsule, "Brüllt nicht. Blitzt.",             "Dragon"),
         };
 
         /// <summary>Baut ein gemischtes Deck mit 20 Karten.</summary>
