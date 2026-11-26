@@ -104,9 +104,10 @@ namespace Kesselwerk
         void BuildTopBar()
         {
             topBar = UIKit.Rect("ObereLeiste", root);
-            var bg = UIKit.Img(topBar, "Hintergrund", null, PanelColor);
-            UIKit.Stretch(bg.rectTransform);
-            var line = UIKit.Img(topBar, "Goldlinie", null, Gold);
+            var bg = UIKit.Img(topBar, "Hintergrund", UIKit.Gradient, new Color(0.05f, 0.04f, 0.08f, 0.85f));
+            UIKit.Stretch(bg.rectTransform, 0, -60, 0, 0);
+            bg.rectTransform.localScale = new Vector3(1f, -1f, 1f);
+            var line = UIKit.Img(topBar, "Goldlinie", null, new Color(Gold.r, Gold.g, Gold.b, 0.0f));
             line.rectTransform.anchorMin = new Vector2(0f, 0f);
             line.rectTransform.anchorMax = new Vector2(1f, 0f);
             line.rectTransform.offsetMin = new Vector2(0f, 0f);
@@ -141,9 +142,9 @@ namespace Kesselwerk
         void BuildBottomArea()
         {
             bottomArea = UIKit.Rect("UntererBereich", root);
-            var bg = UIKit.Img(bottomArea, "Hintergrund", null, PanelColor);
-            UIKit.Stretch(bg.rectTransform);
-            var line = UIKit.Img(bottomArea, "Goldlinie", null, Gold);
+            var bg = UIKit.Img(bottomArea, "Hintergrund", UIKit.Gradient, new Color(0.05f, 0.04f, 0.08f, 0.92f));
+            UIKit.Stretch(bg.rectTransform, 0, 0, 0, -80);
+            var line = UIKit.Img(bottomArea, "Goldlinie", null, new Color(Gold.r, Gold.g, Gold.b, 0.0f));
             line.rectTransform.anchorMin = new Vector2(0f, 1f);
             line.rectTransform.anchorMax = new Vector2(1f, 1f);
             line.rectTransform.offsetMin = new Vector2(0f, -4f);

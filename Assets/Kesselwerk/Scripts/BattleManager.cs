@@ -535,22 +535,33 @@ namespace Kesselwerk
         void LateUpdate()
         {
             if (cam == null) return;
+            // Die Kamera rendert den ganzen Bildschirm (Welt scheint hinter der Oberfläche durch).
+            // Die Arena wird per Bildverschiebung in den freien Bereich zwischen den Leisten gesetzt.
             bool portrait = Screen.height >= Screen.width;
             float bottom = BattleUI.BottomFrac(portrait);
             float top = BattleUI.TopFrac;
-            cam.rect = new Rect(0f, bottom, 1f, Mathf.Max(0.1f, 1f - bottom - top));
+            float band = Mathf.Max(0.2f, 1f - bottom - top);
 
-            float aspect = cam.pixelHeight > 0 ? cam.pixelWidth / (float)cam.pixelHeight : 1f;
+            float aspect = Screen.height > 0 ? Screen.width / (float)Screen.height : 1f;
             float halfV = cam.fieldOfView * 0.5f * Mathf.Deg2Rad;
             float halfH = Mathf.Atan(Mathf.Tan(halfV) * aspect);
-            float needHalfWidth = 5.0f;
-            float dist = Mathf.Max(11.5f, needHalfWidth / Mathf.Tan(halfH));
+            float halfBand = Mathf.Atan(Mathf.Tan(halfV) * band);
 
-            Vector3 target = new Vector3(0f, 0.3f, -0.2f);
-            Vector3 dir = Quaternion.Euler(50f, 0f, 0f) * Vector3.back;
+            // Abstand so, dass Breite (4 Plätze) und Tiefe (Kessel bis Kessel) in den freien Bereich passen
+            float distW = 5.2f / Mathf.Tan(halfH);
+            float distD = 4.6f / Mathf.Tan(halfBand);
+            float dist = Mathf.Max(11f, Mathf.Max(distW, distD));
+
+            Vector3 target = new Vector3(0f, 0.4f, 0.1f);
+            Vector3 dir = Quaternion.Euler(44f, 0f, 0f) * Vector3.back;
             Vector3 shake = Time.time < shakeUntil ? Random.insideUnitSphere * 0.12f : Vector3.zero;
             cam.transform.position = target + dir * dist + shake;
             cam.transform.LookAt(target);
+
+            cam.ResetProjectionMatrix();
+            var proj = cam.projectionMatrix;
+            proj.m12 = -(bottom - top); // Bildmitte in die Mitte des freien Bereichs schieben
+            cam.projectionMatrix = proj;
         }
     }
 }

@@ -6,6 +6,8 @@ Erlaubt sind nur Lizenzen, die kommerzielle Nutzung erlauben (bevorzugt CC0).
 | Asset | Urheber | Quelle | Lizenz | Verwendet für | Hinzugefügt am |
 |---|---|---|---|---|---|
 | Textured Cute Monster Pack (Crab, Tree, Ghost, Demon, Cactus, Alien, Yeti – FBX + Texturen) | Quaternius | https://opengameart.org/content/textured-cute-monster-pack | CC0 | Monster-Modelle der Karten | 2026-11-26 |
+| Stylized Nature MegaKit [Standard] (34 Modelle + 11 Texturen: Bäume, Büsche, Blumen, Gras, Pilze, Steine) | Quaternius | https://quaternius.itch.io/stylized-nature-megakit | CC0 | Arena-Umgebung | 2026-11-26 |
+| TextMeshPro Essential Resources (LiberationSans) | Unity / Liberation Fonts | Unity-Paket com.unity.ugui | Unity Companion License / SIL OFL | Schrift der Oberfläche | 2026-11-26 |
 | LowPoly Animated Monsters (Dragon – FBX) | Quaternius | https://opengameart.org/content/lowpoly-animated-monsters | CC0 | Modell „Donnerdrache“ | 2026-11-26 |
 
 ## Geplante Assets
