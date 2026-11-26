@@ -178,6 +178,9 @@ namespace Kesselwerk.Core
 
         public int burnTurns; public float burnDmg; public int burnSource = -1;
         public int stunTurns;
+        public int frostTurns;
+        public int poisonStacks; public int poisonSource = -1; public float poisonAtk;
+        public int bossPhase;
         public int atkUpTurns; public float atkUpPct;
         public int defDownTurns; public float defDownPct;
         public int tauntTurns;
@@ -216,6 +219,10 @@ namespace Kesselwerk.Core
         Stunned,    // setzt aus (actor)
         Dodge,      // ausgewichen (target)
         Taunt,      // provoziert (actor)
+        Frost,      // vereist/verlangsamt (target, value = Dauer)
+        Poison,     // vergiftet (target, value = Stapel)
+        PoisonTick, // Giftschaden (target, value)
+        Phase,      // Bossphase beginnt (actor = Boss, text = Name)
         Death,      // stirbt (target)
         End,        // Kampfende (value = Sieger)
     }
@@ -270,14 +277,17 @@ namespace Kesselwerk.Core
         readonly Rng rng;
         int actions;
 
-        public static BattleResult Run(TeamSpec player, TeamSpec enemy, int seed)
+        readonly Weather weather;
+
+        public static BattleResult Run(TeamSpec player, TeamSpec enemy, int seed, Weather weather = Weather.Klar)
         {
-            var sim = new BattleSim(player, enemy, seed);
+            var sim = new BattleSim(player, enemy, seed, weather);
             return sim.Execute(seed);
         }
 
-        BattleSim(TeamSpec player, TeamSpec enemy, int seed)
+        BattleSim(TeamSpec player, TeamSpec enemy, int seed, Weather w)
         {
+            weather = w;
             rng = new Rng(seed);
             AddTeam(player, 0, enemy);
             AddTeam(enemy, 1, player);
@@ -316,7 +326,7 @@ namespace Kesselwerk.Core
                 };
                 u.maxHp = Stats.Hp(d, spec) * (1f + allB);
                 u.hp = u.maxHp;
-                u.atk = Stats.Atk(d, spec) * (1f + atkB + allB);
+                u.atk = Stats.Atk(d, spec) * (1f + atkB + allB) * WeatherInfo.AtkMul(weather, d.element);
                 u.defense = Stats.Def(d, spec) * (1f + defB + allB);
                 u.spd = Stats.Spd(d, spec) * (1f + spdB + allB);
                 u.crit = Stats.Crit(d, spec) + critB;
@@ -324,7 +334,11 @@ namespace Kesselwerk.Core
                 u.regen = regenB;
                 u.lifesteal = lsB;
                 u.energyMul = 1f + energyB;
-                u.healTakenMul = 1f + healB;
+                u.healTakenMul = 1f + healB + (weather == Weather.Regen ? 0.1f : 0f);
+                if (weather == Weather.Schnee) u.spd *= 0.92f;
+                if (weather == Weather.Nebel) u.dodge += 0.08f;
+                if (weather == Weather.Sturm) u.crit += 0.05f;
+                if (weather == Weather.Klar && d.element == Element.Natur) u.regen += 0.02f;
 
                 switch (d.passive)
                 {
@@ -357,14 +371,14 @@ namespace Kesselwerk.Core
                 foreach (var u in units)
                 {
                     if (!u.Alive) continue;
-                    float t = (GaugeFull - u.gauge) / Math.Max(1f, u.spd);
+                    float t = (GaugeFull - u.gauge) / Math.Max(1f, EffSpd(u));
                     if (t < minTime) minTime = t;
                 }
                 if (minTime < 0f) minTime = 0f;
                 foreach (var u in units)
                 {
                     if (!u.Alive) continue;
-                    u.gauge += u.spd * minTime;
+                    u.gauge += EffSpd(u) * minTime;
                     if (u.gauge >= GaugeFull - 0.001f) ready.Add(u);
                 }
                 ready.Sort((a, b) =>
@@ -395,6 +409,8 @@ namespace Kesselwerk.Core
             events.Add(new BattleEvent { type = EvType.End, value = winner });
             return new BattleResult { winner = winner, actions = actions, timeout = timeout, units = units, events = events, seed = seed };
         }
+
+        static float EffSpd(BattleUnit u) => u.spd * (u.frostTurns > 0 ? 0.6f : 1f);
 
         int CheckWinner()
         {
@@ -432,6 +448,17 @@ namespace Kesselwerk.Core
                 Emit(EvType.BurnTick, a.uid, a.uid, dmg);
                 if (!a.Alive) { Die(a); return; }
             }
+            if (a.poisonStacks > 0)
+            {
+                float per = Math.Min(a.maxHp * 0.03f, a.poisonAtk * 0.35f);
+                int dmg = Math.Max(1, MathK.RoundToInt(per * a.poisonStacks));
+                ApplyRaw(a, dmg);
+                if (a.poisonSource >= 0) units[a.poisonSource].damageDealt += dmg;
+                Emit(EvType.PoisonTick, a.uid, a.uid, dmg);
+                a.poisonStacks--;
+                if (!a.Alive) { Die(a); return; }
+            }
+            if (a.frostTurns > 0) a.frostTurns--;
             if (a.regen > 0f && a.hp < a.maxHp)
                 Heal(a, a, a.maxHp * a.regen, false);
 
@@ -456,7 +483,51 @@ namespace Kesselwerk.Core
             if (t == null) return;
             Emit(EvType.Attack, a.uid, t.uid, 0);
             a.energy += EnergyPerAttack * a.energyMul;
-            Hit(a, t, 1f, true, !a.def.ranged);
+            if (Hit(a, t, 1f, true, !a.def.ranged) && t.Alive) ElementProc(a, t);
+        }
+
+        /// <summary>Grundangriffe lösen je nach Element manchmal einen Zustand aus.</summary>
+        void ElementProc(BattleUnit a, BattleUnit t)
+        {
+            switch (a.def.element)
+            {
+                case Element.Feuer:
+                    if (rng.Value() < (weather == Weather.Hitze ? 0.25f : 0.12f)) ApplyBurn(a, t, 2, 0.2f);
+                    break;
+                case Element.Eis:
+                    if (rng.Value() < (weather == Weather.Schnee ? 0.25f : 0.14f)) ApplyFrost(a, t, 2);
+                    break;
+                case Element.Natur:
+                    if (rng.Value() < 0.14f) ApplyPoison(a, t, 1);
+                    break;
+                case Element.Blitz:
+                    if (rng.Value() < (weather == Weather.Sturm ? 0.12f : 0.07f)) { t.stunTurns = Math.Max(t.stunTurns, 1); Emit(EvType.Stun, a.uid, t.uid, 1); }
+                    break;
+            }
+        }
+
+        void ApplyBurn(BattleUnit a, BattleUnit t, int turns, float pct)
+        {
+            float mul = weather == Weather.Hitze ? 1.5f : weather == Weather.Regen ? 0.6f : 1f;
+            t.burnTurns = Math.Max(t.burnTurns, turns);
+            t.burnDmg = Math.Max(t.burnDmg, a.CurrentAtk * pct * mul);
+            t.burnSource = a.uid;
+            Emit(EvType.Burn, a.uid, t.uid, turns);
+        }
+
+        void ApplyFrost(BattleUnit a, BattleUnit t, int turns)
+        {
+            if (weather == Weather.Schnee) turns++;
+            t.frostTurns = Math.Max(t.frostTurns, turns);
+            Emit(EvType.Frost, a.uid, t.uid, turns);
+        }
+
+        void ApplyPoison(BattleUnit a, BattleUnit t, int stacks)
+        {
+            t.poisonStacks = Math.Min(5, t.poisonStacks + stacks);
+            t.poisonSource = a.uid;
+            t.poisonAtk = Math.Max(t.poisonAtk, a.CurrentAtk);
+            Emit(EvType.Poison, a.uid, t.uid, t.poisonStacks);
         }
 
         void CastSkill(BattleUnit a)
@@ -477,13 +548,21 @@ namespace Kesselwerk.Core
                 {
                     var t = ChooseTarget(a); if (t == null) return;
                     ev.target = t.uid; events.Add(ev);
-                    if (Hit(a, t, s.power, true, false) && t.Alive)
-                    {
-                        t.burnTurns = s.duration;
-                        t.burnDmg = a.CurrentAtk * 0.3f;
-                        t.burnSource = a.uid;
-                        Emit(EvType.Burn, a.uid, t.uid, s.duration);
-                    }
+                    if (Hit(a, t, s.power, true, false) && t.Alive) ApplyBurn(a, t, s.duration, 0.3f);
+                    break;
+                }
+                case SkillKind.Freeze:
+                {
+                    var t = ChooseTarget(a); if (t == null) return;
+                    ev.target = t.uid; events.Add(ev);
+                    if (Hit(a, t, s.power, true, false) && t.Alive) ApplyFrost(a, t, Math.Max(2, s.duration));
+                    break;
+                }
+                case SkillKind.Poison:
+                {
+                    events.Add(ev);
+                    foreach (var t in Enemies(a))
+                        if (Hit(a, t, s.power, false, false) && t.Alive) ApplyPoison(a, t, Math.Max(1, s.duration));
                     break;
                 }
                 case SkillKind.Stun:
@@ -663,15 +742,38 @@ namespace Kesselwerk.Core
             }
 
             if (!t.Alive) Die(t);
-            else if (t.def.isBoss && !t.enraged && t.HpPct < 0.5f)
+            else if (t.def.isBoss) BossPhases(t);
+            return true;
+        }
+
+        /// <summary>
+        /// Bosse haben drei Phasen: Schildwall (unter 70 %), Raserei (unter 50 %), Verzweiflung (unter 25 %).
+        /// </summary>
+        void BossPhases(BattleUnit t)
+        {
+            if (t.bossPhase == 0 && t.HpPct < 0.7f)
             {
-                // Bossphase: Raserei unter 50 % Leben
+                t.bossPhase = 1;
+                events.Add(new BattleEvent { type = EvType.Phase, actor = t.uid, target = t.uid, value = 1, elem = 1f, text = "Schildwall" });
+                float sh = t.maxHp * 0.12f;
+                t.shield += sh;
+                Emit(EvType.Shield, t.uid, t.uid, MathK.RoundToInt(sh));
+            }
+            if (t.bossPhase == 1 && t.HpPct < 0.5f)
+            {
+                t.bossPhase = 2;
                 t.enraged = true;
                 t.atk *= 1.4f;
                 t.spd *= 1.2f;
                 events.Add(new BattleEvent { type = EvType.Buff, actor = t.uid, target = t.uid, value = 40, elem = 1f, text = "Raserei" });
             }
-            return true;
+            if (t.bossPhase == 2 && t.HpPct < 0.25f)
+            {
+                t.bossPhase = 3;
+                events.Add(new BattleEvent { type = EvType.Phase, actor = t.uid, target = t.uid, value = 3, elem = 1f, text = "Verzweiflung" });
+                foreach (var e in Enemies(t)) Hit(t, e, 0.7f, false, false);
+                t.energy = 100f;
+            }
         }
 
         void ApplyRaw(BattleUnit t, int value)
@@ -690,7 +792,7 @@ namespace Kesselwerk.Core
         void Heal(BattleUnit a, BattleUnit t, float amount, bool emitAlways)
         {
             if (!t.Alive) return;
-            float v = amount * t.healTakenMul;
+            float v = amount * t.healTakenMul * (t.poisonStacks > 0 ? 0.7f : 1f);
             float real = Math.Min(v, t.maxHp - t.hp);
             if (real <= 0f && !emitAlways) return;
             t.hp += Math.Max(0f, real);

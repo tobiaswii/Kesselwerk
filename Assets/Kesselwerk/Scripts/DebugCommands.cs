@@ -111,6 +111,28 @@ namespace Kesselwerk
                     string dir = System.IO.Path.Combine(System.IO.Directory.GetParent(Application.dataPath).FullName, "ClaudeBridge");
                     return FrameRecorder.Start(System.IO.Path.Combine(dir, name + ".mjpeg"), fps, 1280, 720);
                 }
+                case "give":
+                {
+                    // give <id> [stufe] – Kreatur schenken (zum Testen neuer Modelle)
+                    var oc = D.Get(p[1]);
+                    if (oc == null) { oc = new OwnedCreature { id = p[1] }; D.creatures.Add(oc); }
+                    if (p.Length > 2) oc.stage = int.Parse(p[2]);
+                    Game.Save();
+                    return "ok " + p[1];
+                }
+                case "team":
+                {
+                    // team id0 id1 … id5 – Team setzen (fehlende Kreaturen werden geschenkt), "-" = leer
+                    for (int i = 0; i < TeamSpec.Slots; i++)
+                    {
+                        string id = i + 1 < p.Length ? p[i + 1] : "-";
+                        if (id == "-") { D.team[i] = null; continue; }
+                        if (D.Get(id) == null) D.creatures.Add(new OwnedCreature { id = id, level = 25, stars = 3 });
+                        D.team[i] = id;
+                    }
+                    Game.Save();
+                    return "ok team " + D.TeamCount();
+                }
                 case "timescale":
                     Time.timeScale = float.Parse(p[1], System.Globalization.CultureInfo.InvariantCulture);
                     return "ok";

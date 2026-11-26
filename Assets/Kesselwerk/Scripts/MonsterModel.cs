@@ -29,20 +29,22 @@ namespace Kesselwerk
             inst.transform.localPosition = Vector3.zero;
             inst.transform.localRotation = Quaternion.identity;
 
-            // Textur sicher zuweisen und Material etwas "weicher" machen
+            // Anime-Shader für alle Monster: Textur (falls vorhanden) × Eckpunktfarbe
             var tex = Resources.Load<Texture2D>("Monsters/Textures/" + model + "_Texture");
+            bool generated = model.StartsWith("Gen_");
             foreach (var r in inst.GetComponentsInChildren<Renderer>())
             {
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
-                foreach (var m in r.materials)
+                var mats = r.sharedMaterials;
+                var fresh = new Material[mats.Length];
+                for (int i = 0; i < mats.Length; i++)
                 {
-                    if (tex != null)
-                    {
-                        if (m.HasProperty("_BaseMap")) m.SetTexture("_BaseMap", tex);
-                        if (m.HasProperty("_MainTex")) m.SetTexture("_MainTex", tex);
-                    }
-                    if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 0.25f);
+                    Texture t = tex;
+                    if (t == null && mats[i] != null && !generated)
+                        t = mats[i].HasProperty("_BaseMap") ? mats[i].GetTexture("_BaseMap") : mats[i].mainTexture;
+                    fresh[i] = ToonMaterial(t, mats[i] != null && !generated && t == null ? mats[i].color : Color.white);
                 }
+                r.materials = fresh;
             }
 
             // Einheitliche Höhe
@@ -60,6 +62,19 @@ namespace Kesselwerk
 
             clips = Resources.LoadAll<AnimationClip>("Monsters/" + model);
             return inst;
+        }
+
+        static Shader toon;
+
+        /// <summary>Neues Material mit dem Kreatur-Shader (je Instanz, weil Treffer die Farbe tönen).</summary>
+        public static Material ToonMaterial(Texture tex, Color color)
+        {
+            if (toon == null) toon = Resources.Load<Shader>("Shaders/Kreatur");
+            if (toon == null) toon = Shader.Find("Kesselwerk/Kreatur");
+            var m = new Material(toon);
+            if (tex != null) m.SetTexture("_BaseMap", tex);
+            m.SetColor("_BaseColor", color);
+            return m;
         }
 
         public static Bounds CalcBounds(GameObject go)

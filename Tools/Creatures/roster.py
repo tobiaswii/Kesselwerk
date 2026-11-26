@@ -1,0 +1,241 @@
+"""Neue Kreaturen: Modell-Bauplan + Spieldaten aus einer Liste."""
+
+R = ["Gewoehnlich", "Ungewoehnlich", "Selten", "Episch", "Legendaer", "Mythisch"]
+RMUL = {"Gewoehnlich": 1.0, "Ungewoehnlich": 1.04, "Selten": 1.08, "Episch": 1.14, "Legendaer": 1.2, "Mythisch": 1.26}
+BASE = {  # hp, atk, def, spd, crit
+    "Tank": (1200, 64, 60, 76, 0.05), "Angreifer": (760, 120, 32, 110, 0.14),
+    "Support": (880, 96, 40, 104, 0.09), "Heiler": (780, 82, 37, 104, 0.06),
+}
+
+
+def C(id, names, el, rar, role, ranged, skill, passive, desc, model, tweak=(1, 1, 1, 0)):
+    return dict(id=id, names=names, el=el, rar=rar, role=role, ranged=ranged, skill=skill, passive=passive, desc=desc,
+                model=dict(id=id, **model), tweak=tweak)
+
+
+S = lambda name, kind, power, dur, text: (name, kind, power, dur, text)
+
+ROSTER = [
+    # ---------------- Feuer ----------------
+    C("glutfuchs", ["Glutfuchs", "Flammenfuchs"], "Feuer", "Selten", "Angreifer", False,
+      S("Funkenschweif", "Burn", 1.35, 3, "Ein glühender Schweifhieb, das Ziel brennt."), "Ausweichen",
+      "Seine Schwanzspitze glimmt wie ein Holzscheit im Kamin.",
+      dict(type="quad", body="#e8682a", belly="#fff1dc", dark="#3a2420", iris="#ff9d2e", glow="#ffcf4a",
+           head_accent="flames", tail_tip_glow=True, ear_len=0.3, ear_w=0.2, tail_len=0.55, tail_r=0.12)),
+    C("lavaeber", ["Lavaeber", "Magmakeiler"], "Feuer", "Ungewoehnlich", "Tank", False,
+      S("Glutansturm", "Taunt", 1.0, 3, "Stürmt vor, bekommt einen Schild und zieht Angriffe auf sich."), "Dornen",
+      "Unter seinen Borsten brodelt flüssiges Gestein.",
+      dict(type="quad", body="#7a3326", belly="#f0b07a", dark="#2a1410", iris="#ffb347", glow="#ff7a1f", back="flames", back_n=4,
+           horns=(0.13, 0.035), horn_curve=0.5, horn_spread=55, ears="pointy", ear_len=0.16, ear_w=0.14, snout=0.16, snout_r=0.11,
+           body_len=0.56, chest_r=0.24, hip_r=0.2, tail_fluffy=False, tail_len=0.22, tail_r=0.06, tufts=False)),
+    C("aschekobold", ["Aschekobold", "Feuerwichtel"], "Feuer", "Gewoehnlich", "Angreifer", False,
+      S("Glutkralle", "Strike", 1.6, 0, "Ein schneller Hieb mit glühenden Krallen."), "Wut",
+      "Klein, frech und immer auf der Suche nach etwas, das brennt.",
+      dict(type="biped", body="#c8452c", belly="#ffd9a8", dark="#3b1a17", iris="#ffd23a", glow="#ffb02e", horns=(0.12, 0.03),
+           ears="pointy", ear_len=0.18, ear_w=0.13, claws=True, tail_len=0.3, tail_r=0.04, tail_fluffy=False, tail_tip_glow=True,
+           head_r=0.27, belly_r=0.19, chest_r=0.17)),
+    C("phoenixkueken", ["Phönixküken", "Aschephönix"], "Feuer", "Episch", "Heiler", True,
+      S("Wiedergeburt", "HealAll", 1.2, 0, "Warme Federn heilen alle Verbündeten."), "Regeneration",
+      "Wo es landet, wachsen am nächsten Morgen Blumen.",
+      dict(type="bird", body="#ff8a2b", belly="#fff0b8", accent="#ffd23a", iris="#c2410c", glow="#ffd23a", head_accent="flames",
+           beak="#ffe08a", hover=0.18)),
+    C("lavadrache", ["Lavadrache", "Vulkanwyrm"], "Feuer", "Mythisch", "Angreifer", True,
+      S("Vulkanatem", "AllEnemies", 1.15, 0, "Feuriger Atem trifft alle Gegner."), "Elementkraft",
+      "Schläft im Krater und träumt von Funkenregen.",
+      dict(type="quad", body="#5a1f1f", belly="#ffb35c", dark="#220d0d", accent="#ff7a1f", glow="#ff9a2e", iris="#ffd23a",
+           horns=(0.24, 0.05), wings=True, wing_span=0.75, wing_chord=0.45, back="flames", back_n=5, tail_fluffy=False,
+           tail_r=0.14, tail_len=0.65, tail_up=0.25, tail_tip_glow=True, ears="none", tufts=False, chest_tufts=False, snout=0.17,
+           socks=False, body_len=0.6, chest_r=0.23), tweak=(1.05, 1.05, 1, 0)),
+    # ---------------- Wasser ----------------
+    C("wellenotter", ["Wellenotter", "Gezeitenotter"], "Wasser", "Gewoehnlich", "Angreifer", False,
+      S("Wasserpeitsche", "Cleave", 1.25, 0, "Ein Schwanzschlag trifft das Ziel und seine Nachbarn."), "Ausweichen",
+      "Schwimmt lieber rückwärts – einfach, weil es geht.",
+      dict(type="quad", body="#3d7fb0", belly="#f3e6c8", dark="#1e3550", iris="#2e6bd6", ears="round", ear_w=0.13,
+           body_len=0.62, body_h=0.32, leg_r=0.06, snout=0.1, tail_fluffy=False, tail_r=0.11, tail_len=0.45, tail_up=0.15)),
+    C("nebelqualle", ["Nebelqualle", "Tiefseeschimmer"], "Wasser", "Ungewoehnlich", "Heiler", True,
+      S("Gezeitensegen", "HealLowest", 2.2, 0, "Heilt den schwächsten Verbündeten stark."), "Regeneration",
+      "Leuchtet nachts in allen Farben des Meeres.",
+      dict(type="floater", body="#8a7cff", belly="#ffd1f2", glow="#7af0ff", iris="#3a2a9e", head_accent="crystal")),
+    C("panzerkroete", ["Panzerkröte", "Gezeitenkoloss"], "Wasser", "Episch", "Tank", False,
+      S("Muschelburg", "ShieldAll", 0.75, 0, "Ein Wasserpanzer schützt alle Verbündeten."), "Startschild",
+      "Trägt sein Zuhause auf dem Rücken – und das ganze Team gleich mit.",
+      dict(type="quad", body="#3f8a6d", belly="#e9e2b0", dark="#1c3d30", accent="#5b6f8a", iris="#f2c14e", back="shell", back_n=5,
+           ears="none", tufts=False, snout=0.07, snout_r=0.1, body_len=0.55, body_h=0.32, chest_r=0.25, hip_r=0.23,
+           tail_fluffy=False, tail_len=0.15, tail_r=0.06), tweak=(1.05, 1, 1.05, 0)),
+    # ---------------- Natur ----------------
+    C("blatthase", ["Blatthase", "Blütenhase"], "Natur", "Gewoehnlich", "Heiler", True,
+      S("Kleeregen", "HealAll", 1.0, 0, "Kleeblätter regnen auf alle Verbündeten und heilen sie."), "Regeneration",
+      "Wo er hoppelt, sprießt sofort frischer Klee.",
+      dict(type="quad", body="#e9e2d0", belly="#ffffff", dark="#7a9a5a", accent="#6cc04a", iris="#4f9b2f", ears="long",
+           ear_len=0.3, ear_w=0.15, head_accent="leaves", snout=0.05, body_len=0.42, tail_len=0.12, tail_r=0.1, socks=False)),
+    C("moosbaer", ["Moosbär", "Waldkoloss"], "Natur", "Selten", "Tank", False,
+      S("Wurzelgriff", "Stun", 1.1, 1, "Wurzeln packen ein Ziel und betäuben es."), "Regeneration",
+      "Auf seinem Rücken nisten Vögel – er hat nichts dagegen.",
+      dict(type="biped", body="#6b5a3a", belly="#cfe3a0", dark="#2f2a1a", accent="#5fae3e", iris="#b6e05a", snout=0.09,
+           ears="round", ear_w=0.2, back="leaves", back_n=4, head_r=0.26, belly_r=0.26, chest_r=0.23, arm_r=0.075)),
+    C("dornhirsch", ["Dornhirsch", "Waldfürst"], "Natur", "Episch", "Support", True,
+      S("Dornenkrone", "DebuffDefense", 0.35, 3, "Dornen senken die Verteidigung aller Gegner um 35 %."), "Elementkraft",
+      "Sein Geweih trägt jeden Frühling neue Blüten.",
+      dict(type="quad", body="#a8743f", belly="#f6e7c8", dark="#4a2f18", accent="#6cc04a", iris="#3b8f2a", horns=(0.3, 0.035),
+           horn_curve=-0.2, horn_spread=35, head_accent="leaves", ear_len=0.22, ear_w=0.14, neck=0.26, leg_r=0.06, body_h=0.48,
+           tail_len=0.15, tail_r=0.08, snout=0.14)),
+    # ---------------- Erde ----------------
+    C("felsdachs", ["Felsdachs", "Bergbrecher"], "Erde", "Gewoehnlich", "Tank", False,
+      S("Grabwall", "Taunt", 0.9, 3, "Gräbt sich ein: Schild und provozieren."), "Startschild",
+      "Gräbt sich durch Fels, als wäre es Pudding.",
+      dict(type="quad", body="#7d7468", belly="#e9e4da", dark="#2a2622", iris="#c98b3a", mask=True, stripes=False,
+           ears="round", ear_w=0.12, body_len=0.52, body_h=0.32, chest_r=0.23, hip_r=0.21, snout=0.13, tail_len=0.18, tail_r=0.08)),
+    C("sandgecko", ["Sandgecko", "Wüstenwächter"], "Erde", "Ungewoehnlich", "Angreifer", False,
+      S("Sandsturm", "BackLine", 1.25, 0, "Wirbelt Sand auf die hintere Reihe der Gegner."), "Ausweichen",
+      "Kann tagelang regungslos in der Sonne liegen.",
+      dict(type="quad", body="#d6a24a", belly="#f6e6b8", dark="#7a4f1e", iris="#2a9d8f", back="spikes", back_n=5, ears="none",
+           tufts=False, chest_tufts=False, tail_fluffy=False, tail_r=0.1, tail_len=0.6, tail_up=0.1, body_h=0.3, snout=0.12)),
+    C("steingolem", ["Steingolem", "Bergtitan"], "Erde", "Legendaer", "Tank", False,
+      S("Erdbeben", "AllEnemies", 0.95, 0, "Ein Stampfer erschüttert alle Gegner."), "Dornen",
+      "Wurde aus einem ganzen Hügel geformt – und ist noch nicht fertig.",
+      dict(type="biped", body="#8a8f99", belly="#b9bcc4", dark="#4a4e57", accent="#7fd0ff", glow="#7fe0ff", iris="#59c3ff",
+           ears="none", tufts=False, chest_tufts=False, back="crystals", back_n=4, head_r=0.22, belly_r=0.28, chest_r=0.27,
+           arm_r=0.1, arm_len=0.38, hand=1.8, head_accent="crystal"), tweak=(1.1, 0.95, 1.1, 0)),
+    # ---------------- Luft ----------------
+    C("windfalke", ["Windfalke", "Sturmschwinge"], "Luft", "Ungewoehnlich", "Angreifer", True,
+      S("Sturzflug", "Execute", 1.6, 0, "Doppelter Schaden gegen angeschlagene Gegner."), "Kritmeister",
+      "Sieht eine Maus aus drei Kilometern Höhe.",
+      dict(type="bird", body="#8a6a4a", belly="#f4ead8", accent="#3f5f8a", iris="#ffb000", head_accent="crest", hover=0.2,
+           beak="#f2c14e", beak_curve=0.6)),
+    C("wolkenschaf", ["Wolkenschaf", "Gewitterwidder"], "Luft", "Gewoehnlich", "Support", True,
+      S("Schäfchenwolke", "ShieldAll", 0.55, 0, "Weiche Wolken schützen alle Verbündeten."), "Startschild",
+      "Hüpft am liebsten auf Wolken. Fällt dabei manchmal runter.",
+      dict(type="quad", body="#f6f3ee", belly="#d9d2e6", dark="#5a4e6e", iris="#6a5acd", horns=(0.12, 0.035), horn_curve=0.9,
+           horn_spread=70, ears="round", ear_w=0.12, body_len=0.42, chest_r=0.26, hip_r=0.25, snout=0.06, tail_len=0.12,
+           tail_r=0.1, head_r=0.24)),
+    C("sturmgreif", ["Sturmgreif", "Himmelsgreif"], "Luft", "Legendaer", "Angreifer", False,
+      S("Wirbelsturm", "AllEnemies", 1.05, 0, "Ein Wirbelsturm trifft alle Gegner."), "Ausweichen",
+      "Halb Adler, halb Löwe, ganz Wind.",
+      dict(type="quad", body="#c9a06a", belly="#fff6e6", dark="#5a4028", accent="#f2f2f2", iris="#ffb000", wings=True,
+           wing_kind="feather", wing_span=0.7, wing_chord=0.42, head_accent="crest", ears="none", snout=0.0, beak_quad=True,
+           tail_fluffy=True, tail_r=0.08, tail_len=0.5), tweak=(1.05, 1.05, 1, 0)),
+    # ---------------- Blitz ----------------
+    C("funkmaus", ["Funkmaus", "Blitzratte"], "Blitz", "Gewoehnlich", "Angreifer", True,
+      S("Funkenschlag", "Chain", 1.25, 0, "Ein Funke springt auf bis zu drei Gegner."), "Kritmeister",
+      "Lädt sich auf, indem sie über Teppiche rennt.",
+      dict(type="quad", body="#ffd23a", belly="#fff6d6", dark="#7a5a10", iris="#2a2a7a", glow="#fff36b", ears="round", ear_w=0.22,
+           body_len=0.38, body_h=0.3, snout=0.08, tail_fluffy=False, tail_r=0.05, tail_len=0.45, tail_up=0.9, tail_tip_glow=True)),
+    C("voltwolf", ["Voltwolf", "Donnerheuler"], "Blitz", "Selten", "Angreifer", False,
+      S("Donnerbiss", "Stun", 1.45, 1, "Ein elektrischer Biss betäubt das Ziel."), "Wut",
+      "Bei Gewitter heult er mit dem Donner um die Wette.",
+      dict(type="quad", body="#2f3f7a", belly="#c9d6ff", dark="#151c3a", accent="#ffe14a", glow="#ffe14a", iris="#ffe14a",
+           back="crystals", back_n=4, stripes=True, body_len=0.56, snout=0.16, ear_len=0.28, tail_tip_glow=True)),
+    C("volttiger", ["Volttiger", "Gewittertiger"], "Blitz", "Episch", "Angreifer", False,
+      S("Blitzklaue", "Strike", 2.0, 0, "Ein gewaltiger, elektrisch geladener Hieb."), "Kritmeister",
+      "Seine Streifen leuchten, kurz bevor er zuschlägt.",
+      dict(type="biped", body="#f2a33a", belly="#fff4dc", dark="#2a1a2e", accent="#ffe14a", glow="#fff36b", iris="#3ad1ff",
+           ears="pointy", ear_len=0.16, ear_w=0.15, claws=True, tail_len=0.4, tail_r=0.05, tail_fluffy=False, tail_tip_glow=True,
+           snout=0.07, back="crystals", back_n=3)),
+    # ---------------- Eis ----------------
+    C("frostwolf", ["Frostwolf", "Gletscherwolf"], "Eis", "Selten", "Angreifer", False,
+      S("Frostbiss", "Stun", 1.4, 1, "Ein eisiger Biss lässt das Ziel erstarren."), "Elementkraft",
+      "Sein Atem lässt Pfützen in Sekunden gefrieren.",
+      dict(type="quad", body="#9fb8d6", belly="#f4f8ff", dark="#3c4a66", accent="#e9f3ff", iris="#59c3ff", glow="#8fe3ff",
+           back="crystals", tail_tip=False, body_len=0.56, snout=0.16, ear_len=0.28)),
+    C("schneeeule", ["Schneeeule", "Polarkauz"], "Eis", "Ungewoehnlich", "Support", True,
+      S("Schneegestöber", "DebuffDefense", 0.3, 3, "Senkt die Verteidigung aller Gegner um 30 %."), "Ausweichen",
+      "Ihre Federn knistern leise, wenn es schneit.",
+      dict(type="bird", body="#f2f6fb", belly="#ffffff", accent="#9fc4e8", iris="#3ad1ff", head_accent="crest", beak="#3a3a4a",
+           mask=False, hover=0.0)),
+    C("eisbaer", ["Eisbär", "Gletscherkönig"], "Eis", "Episch", "Tank", False,
+      S("Gletscherwall", "Taunt", 1.1, 3, "Ein Eispanzer und provozierendes Brüllen."), "Startschild",
+      "Schläft im Winter – und der Winter ist bei ihm lang.",
+      dict(type="biped", body="#eef4fa", belly="#cfe2f5", dark="#5a7090", accent="#9fe3ff", glow="#9fe3ff", iris="#2a7fd6",
+           ears="round", ear_w=0.18, snout=0.1, back="crystals", back_n=3, head_r=0.26, belly_r=0.27, chest_r=0.24, arm_r=0.08),
+      tweak=(1.05, 1, 1.05, 0)),
+    # ---------------- Licht ----------------
+    C("lumifuchs", ["Lumifuchs", "Sonnenfuchs"], "Licht", "Episch", "Heiler", True,
+      S("Morgenglanz", "HealAll", 1.25, 0, "Sanftes Licht heilt alle Verbündeten."), "Regeneration",
+      "Leuchtet sanft, wenn jemand in seiner Nähe traurig ist.",
+      dict(type="quad", body="#fff4dc", belly="#ffffff", dark="#c9a24a", accent="#ffe08a", glow="#ffe08a", iris="#e0a020",
+           unihorn=0.2, unihorn_glow=True, tail_tip_glow=True, ear_len=0.3, tail_len=0.55, tail_r=0.12)),
+    C("sternenkitz", ["Sternenkitz", "Himmelshirsch"], "Licht", "Selten", "Support", True,
+      S("Sternenstaub", "BuffAttack", 0.3, 3, "Alle Verbündeten erhalten +30 % Angriff."), "Startschild",
+      "Seine Flecken sind Sternbilder, die noch niemand kennt.",
+      dict(type="quad", body="#f2d9a8", belly="#ffffff", dark="#8a6a3a", accent="#fff3b0", glow="#fff3b0", iris="#7a5cff",
+           ear_len=0.24, ear_w=0.15, neck=0.24, leg_r=0.055, body_h=0.46, tail_len=0.12, tail_r=0.07, snout=0.12,
+           back="crystals", back_n=3)),
+    C("glanzfalter", ["Glanzfalter", "Lichtschwinge"], "Licht", "Ungewoehnlich", "Heiler", True,
+      S("Lichtstaub", "HealLowest", 2.1, 0, "Leuchtender Staub heilt den schwächsten Verbündeten."), "Ausweichen",
+      "Folgt Wanderern, die sich im Wald verlaufen haben.",
+      dict(type="floater", body="#fff1b8", belly="#ffffff", glow="#ffe08a", iris="#c97a1a", back="leaves", back_n=2, accent="#ffd0f0")),
+    # ---------------- Schatten ----------------
+    C("schattenkatze", ["Schattenkatze", "Nachtpanther"], "Schatten", "Ungewoehnlich", "Angreifer", False,
+      S("Schattensprung", "Execute", 1.55, 0, "Springt aus dem Schatten – doppelter Schaden gegen Angeschlagene."), "Ausweichen",
+      "Ist immer genau dort, wo du nicht hinschaust.",
+      dict(type="quad", body="#3a2f5a", belly="#7a6aa8", dark="#15101f", accent="#b38cff", glow="#c38cff", iris="#d0ff4a",
+           ear_len=0.24, ear_w=0.18, snout=0.06, tail_fluffy=False, tail_r=0.06, tail_len=0.55, tail_up=0.9, tail_tip_glow=True)),
+    C("nachtgeist", ["Nachtgeist", "Albtraumschleier"], "Schatten", "Gewoehnlich", "Support", True,
+      S("Albdruck", "DebuffDefense", 0.25, 3, "Senkt die Verteidigung aller Gegner um 25 %."), "Lebensraub",
+      "Kichert leise unter dem Bett. Meistens harmlos.",
+      dict(type="floater", body="#5b4a8a", belly="#a99be0", glow="#c38cff", iris="#ff4a8a")),
+    C("schattendrache", ["Schattendrache", "Finsterwyrm"], "Schatten", "Legendaer", "Angreifer", True,
+      S("Finsternis", "AllEnemies", 1.1, 0, "Dunkle Flammen treffen alle Gegner."), "Lebensraub",
+      "Verschluckt das Mondlicht, wenn er wütend ist.",
+      dict(type="quad", body="#2a2238", belly="#6a5a8a", dark="#100c18", accent="#8a5cff", glow="#b38cff", iris="#ff4a5a",
+           horns=(0.22, 0.045), wings=True, wing_span=0.72, wing_chord=0.44, back="spikes", back_n=5, tail_fluffy=False,
+           tail_r=0.13, tail_len=0.62, tail_up=0.2, ears="none", tufts=False, chest_tufts=False, snout=0.17, socks=False,
+           tail_tip_glow=True), tweak=(1.05, 1.05, 1, 0)),
+    # ---------------- Arkan ----------------
+    C("runenfuchs", ["Runenfuchs", "Arkanfuchs"], "Arkan", "Selten", "Support", True,
+      S("Runenkreis", "BuffAttack", 0.3, 3, "Leuchtende Runen geben allen Verbündeten +30 % Angriff."), "Elementkraft",
+      "Die Muster in seinem Fell ändern sich mit jedem Vollmond.",
+      dict(type="quad", body="#6a4fb8", belly="#e6dcff", dark="#2a1f4a", accent="#5ff0ff", glow="#5ff0ff", iris="#5ff0ff",
+           back="crystals", back_n=3, tail_tip_glow=True, ear_len=0.3, tail_len=0.55, tail_r=0.12, head_accent="crystal")),
+    C("arkanwichtel", ["Arkanwichtel", "Runenmagier"], "Arkan", "Gewoehnlich", "Heiler", True,
+      S("Heilrune", "HealLowest", 2.0, 0, "Eine Rune heilt den schwächsten Verbündeten."), "Regeneration",
+      "Kritzelt Zaubersprüche in den Sand und vergisst sie sofort.",
+      dict(type="biped", body="#5aa0d8", belly="#e6f2ff", dark="#1f3a5a", accent="#ffd23a", glow="#8ff0ff", iris="#ffd23a",
+           ears="long", ear_len=0.2, ear_w=0.12, ear_tilt=60, head_r=0.29, belly_r=0.18, chest_r=0.16, head_accent="crystal")),
+    C("zauberkauz", ["Zauberkauz", "Sternenkauz"], "Arkan", "Episch", "Support", True,
+      S("Sternenschauer", "Chain", 1.35, 0, "Ein Sternenstrahl springt auf bis zu drei Gegner."), "Elementkraft",
+      "Liest nachts in den Sternen – und schläft tagsüber in Büchern.",
+      dict(type="bird", body="#3a3a8a", belly="#cfd6ff", accent="#7a5cff", glow="#9fe8ff", iris="#ffd23a", head_accent="crystal",
+           beak="#f2c14e", hover=0.12)),
+    C("sternendrache", ["Sternendrache", "Kosmoswyrm"], "Arkan", "Mythisch", "Support", True,
+      S("Kosmosflut", "AllEnemies", 1.0, 0, "Ein Sternenregen trifft alle Gegner."), "Regeneration",
+      "Trägt einen ganzen Sternenhimmel auf seinen Schuppen.",
+      dict(type="quad", body="#1f2a5a", belly="#9fb8ff", dark="#0c1028", accent="#5ff0ff", glow="#9ff0ff", iris="#ffd23a",
+           horns=(0.22, 0.045), wings=True, wing_span=0.75, wing_chord=0.45, back="crystals", back_n=5, tail_fluffy=False,
+           tail_r=0.13, tail_len=0.65, tail_up=0.25, tail_tip_glow=True, ears="none", tufts=False, chest_tufts=False, snout=0.17,
+           socks=False, unihorn=0.18, unihorn_glow=True), tweak=(1.05, 1.0, 1.05, 0)),
+    C("blitzdrache", ["Blitzdrachling", "Sturmdrache"], "Blitz", "Legendaer", "Angreifer", True,
+      S("Gewitterfront", "Chain", 1.55, 0, "Eine Gewitterfront springt auf bis zu drei Gegner."), "Kritmeister",
+      "Lädt sich in Gewitterwolken auf, bis seine Schuppen knistern.",
+      dict(type="quad", body="#e8c33a", belly="#fff4c8", dark="#3a2a10", accent="#3a6aff", glow="#fff36b", iris="#3a6aff",
+           horns=(0.2, 0.04), wings=True, wing_span=0.7, wing_chord=0.42, back="crystals", back_n=4, tail_fluffy=False,
+           tail_r=0.12, tail_len=0.6, tail_up=0.3, ears="none", tufts=False, chest_tufts=False, snout=0.16, socks=False)),
+    C("frostdrache", ["Frostdrachling", "Eiswyrm"], "Eis", "Legendaer", "Support", True,
+      S("Eissturm", "DebuffDefense", 0.4, 3, "Ein Eissturm senkt die Verteidigung aller Gegner um 40 %."), "Startschild",
+      "Wo er schläft, wachsen Eisblumen an den Fenstern.",
+      dict(type="quad", body="#bfe3ff", belly="#ffffff", dark="#3a5a8a", accent="#7fd0ff", glow="#9fe8ff", iris="#2a6bd6",
+           horns=(0.2, 0.04), wings=True, wing_span=0.7, wing_chord=0.42, back="crystals", back_n=5, tail_fluffy=False,
+           tail_r=0.12, tail_len=0.6, tail_up=0.25, ears="none", tufts=False, chest_tufts=False, snout=0.16, socks=False)),
+]
+
+
+def stats(c):
+    hp, atk, de, spd, crit = BASE[c["role"]]
+    mul = RMUL[c["rar"]]
+    t = c["tweak"]
+    return (round(hp * mul * t[0] / 10) * 10, round(atk * mul * t[1]), round(de * (1 + (mul - 1) * 0.6) * t[2]),
+            spd + t[3] + (4 if c["ranged"] else 0), crit)
+
+
+def model_name(c):
+    return "Gen_" + c["id"][0].upper() + c["id"][1:]
+
+
+def csharp(c):
+    hp, atk, de, spd, crit = stats(c)
+    n, kind, power, dur, text = c["skill"]
+    fn = lambda v: f"{v:.2f}f".replace("0.", "0.") if isinstance(v, float) else str(v)
+    return (f'            Add("{c["id"]}", new[] {{ "{c["names"][0]}", "{c["names"][1]}" }}, "{model_name(c)}", Element.{c["el"]}, '
+            f'Rarity.{c["rar"]}, Role.{c["role"]},\n                {hp}, {atk}, {de}, {spd}, {crit:.2f}f, {"true" if c["ranged"] else "false"},\n'
+            f'                new SkillDef("{n}", SkillKind.{kind}, {power:.2f}f, {dur}, "{text}"),\n'
+            f'                Passive.{c["passive"]}, "{c["desc"]}");')

@@ -107,17 +107,20 @@ namespace Kesselwerk
                 {
                     if (!m.HasProperty("_BaseColor") && !m.HasProperty("_Color")) continue;
                     materials.Add(m);
-                    baseColors.Add(m.color);
+                    baseColors.Add(GetCol(m));
                 }
             }
         }
+
+        static Color GetCol(Material m) => m.HasProperty("_BaseColor") ? m.GetColor("_BaseColor") : m.color;
+        static void SetCol(Material m, Color c) { if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c); else m.color = c; }
 
         void TintBase(Color tint)
         {
             for (int i = 0; i < materials.Count; i++)
             {
                 baseColors[i] = baseColors[i] * tint;
-                materials[i].color = baseColors[i];
+                SetCol(materials[i], baseColors[i]);
             }
         }
 
@@ -125,7 +128,7 @@ namespace Kesselwerk
         {
             for (int i = 0; i < materials.Count; i++)
                 if (materials[i] != null)
-                    materials[i].color = Color.Lerp(baseColors[i], tint, amount);
+                    SetCol(materials[i], Color.Lerp(baseColors[i], tint, amount));
         }
 
         void Update()

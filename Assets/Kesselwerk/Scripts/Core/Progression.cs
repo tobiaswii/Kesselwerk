@@ -400,6 +400,18 @@ namespace Kesselwerk.Core
         public const int StagesPerRegion = 8;
 
         public static readonly string[] RegionNames = { "Grüne Ebenen", "Vulkanregion", "Eisgebirge", "Schattenreich" };
+
+        /// <summary>Festes Wetter je Stufe (jede Region hat ihr typisches Wetter, manche Stufen weichen ab).</summary>
+        public static Weather WeatherFor(int region, int index)
+        {
+            switch (region)
+            {
+                case 0: return index % 3 == 1 ? Weather.Regen : index % 4 == 3 ? Weather.Sturm : Weather.Klar;
+                case 1: return index % 4 == 2 ? Weather.Sturm : Weather.Hitze;
+                case 2: return index % 4 == 1 ? Weather.Klar : Weather.Schnee;
+                default: return index % 3 == 2 ? Weather.Sturm : Weather.Nebel;
+            }
+        }
         public static readonly string[] RegionText =
         {
             "Sanfte Hügel, Bäche und alte Bäume. Hier beginnt jede Reise.",

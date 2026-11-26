@@ -477,4 +477,75 @@ namespace Kesselwerk.Tests
                 Assert.IsTrue(Campaign.Get(r, Campaign.StagesPerRegion - 1).enemy.units.Exists(u => CreatureDb.Get(u.id).isBoss));
         }
     }
+
+    [TestFixture]
+    public class StatusTests
+    {
+        static TeamSpec Team(params string[] ids)
+        {
+            var t = new TeamSpec();
+            for (int i = 0; i < ids.Length; i++) t.Add(new UnitSpec(ids[i], 30, i, 3));
+            return t;
+        }
+
+        [Test]
+        public void FeuerGrundangriffeLoesenBrandAus()
+        {
+            bool found = false;
+            for (int seed = 1; seed < 40 && !found; seed++)
+                found = BattleSim.Run(Team("glut", "kueken", "glut"), Team("moos", "krebs", "schwein"), seed)
+                    .events.Exists(e => e.type == EvType.Burn);
+            Assert.IsTrue(found);
+        }
+
+        [Test]
+        public void EisVerlangsamtUndGiftTickt()
+        {
+            bool frost = false, poison = false;
+            for (int seed = 1; seed < 60 && !(frost && poison); seed++)
+            {
+                var r = BattleSim.Run(Team("pinguin", "frostgeist", "yeti"), Team("hirsch", "moos", "pilz"), seed);
+                frost |= r.events.Exists(e => e.type == EvType.Frost);
+                poison |= r.events.Exists(e => e.type == EvType.PoisonTick);
+            }
+            Assert.IsTrue(frost, "kein Frost");
+            Assert.IsTrue(poison, "kein Gift");
+        }
+
+        [Test]
+        public void WetterIstDeterministischUndWirkt()
+        {
+            var a = BattleSim.Run(Team("glut", "zapf", "krebs"), Team("pinguin", "schleim", "moos"), 9, Weather.Hitze);
+            var b = BattleSim.Run(Team("glut", "zapf", "krebs"), Team("pinguin", "schleim", "moos"), 9, Weather.Hitze);
+            Assert.AreEqual(a.events.Count, b.events.Count);
+            Assert.AreEqual(a.winner, b.winner);
+            Assert.Greater(WeatherInfo.AtkMul(Weather.Hitze, Element.Feuer), 1f);
+            Assert.Less(WeatherInfo.AtkMul(Weather.Hitze, Element.Eis), 1f);
+        }
+
+        [Test]
+        public void BossHatDreiPhasen()
+        {
+            var player = new TeamSpec().Add(new UnitSpec("donner", 40, 3, 4)).Add(new UnitSpec("zapf", 40, 4, 4)).Add(new UnitSpec("yeti", 40, 1, 4))
+                .Add(new UnitSpec("glut", 40, 0, 4)).Add(new UnitSpec("panda", 40, 2, 4)).Add(new UnitSpec("sonne", 40, 5, 4));
+            var r = BattleSim.Run(player, Campaign.Get(0, 7).enemy, 3);
+            Assert.IsTrue(r.events.Exists(e => e.type == EvType.Phase && e.text == "Schildwall"));
+            Assert.IsTrue(r.events.Exists(e => e.type == EvType.Buff && e.text == "Raserei"));
+            Assert.IsTrue(r.events.Exists(e => e.type == EvType.Phase && e.text == "Verzweiflung"));
+        }
+
+        [Test]
+        public void NeueKreaturenSindVollstaendig()
+        {
+            int gen = 0;
+            foreach (var d in CreatureDb.All)
+            {
+                Assert.IsNotNull(d.skill, d.id);
+                Assert.IsFalse(string.IsNullOrEmpty(d.model), d.id);
+                if (d.model.StartsWith("Gen_")) gen++;
+            }
+            Assert.GreaterOrEqual(CreatureDb.All.Count, 60);
+            Assert.GreaterOrEqual(gen, 30);
+        }
+    }
 }

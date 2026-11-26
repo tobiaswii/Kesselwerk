@@ -20,6 +20,8 @@ namespace Kesselwerk.Core
         Taunt,         // Schild für sich + zieht Angriffe auf sich
         BuffAttack,    // Angriff aller Verbündeten erhöht
         DebuffDefense, // Verteidigung aller Gegner gesenkt
+        Freeze,        // Schlag + Frost (Ziel wird langsamer)
+        Poison,        // Giftwolke: alle Gegner erhalten Giftstapel
     }
 
     /// <summary>Passive Eigenschaft, immer aktiv.</summary>
@@ -231,6 +233,148 @@ namespace Kesselwerk.Core
                 1150, 128, 48, 100, 0.12f, true,
                 new SkillDef("Flutwelle", SkillKind.AllEnemies, 1.0f, 0, "Eine riesige Welle überrollt alle Gegner."),
                 Passive.Elementkraft, "Schläft am Grund des Ozeans. Meistens.");
+
+            // ---------- Neue, selbst gebaute Kreaturen (Modelle "Gen_…", erzeugt mit Tools/Creatures) ----------
+            Add("glutfuchs", new[] { "Glutfuchs", "Flammenfuchs" }, "Gen_Glutfuchs", Element.Feuer, Rarity.Selten, Role.Angreifer,
+                820, 130, 34, 110, 0.14f, false,
+                new SkillDef("Funkenschweif", SkillKind.Burn, 1.35f, 3, "Ein glühender Schweifhieb, das Ziel brennt."),
+                Passive.Ausweichen, "Seine Schwanzspitze glimmt wie ein Holzscheit im Kamin.");
+            Add("lavaeber", new[] { "Lavaeber", "Magmakeiler" }, "Gen_Lavaeber", Element.Feuer, Rarity.Ungewoehnlich, Role.Tank,
+                1250, 67, 61, 76, 0.05f, false,
+                new SkillDef("Glutansturm", SkillKind.Taunt, 1.00f, 3, "Stürmt vor, bekommt einen Schild und zieht Angriffe auf sich."),
+                Passive.Dornen, "Unter seinen Borsten brodelt flüssiges Gestein.");
+            Add("aschekobold", new[] { "Aschekobold", "Feuerwichtel" }, "Gen_Aschekobold", Element.Feuer, Rarity.Gewoehnlich, Role.Angreifer,
+                760, 120, 32, 110, 0.14f, false,
+                new SkillDef("Glutkralle", SkillKind.Strike, 1.60f, 0, "Ein schneller Hieb mit glühenden Krallen."),
+                Passive.Wut, "Klein, frech und immer auf der Suche nach etwas, das brennt.");
+            Add("phoenixkueken", new[] { "Phönixküken", "Aschephönix" }, "Gen_Phoenixkueken", Element.Feuer, Rarity.Episch, Role.Heiler,
+                890, 93, 40, 108, 0.06f, true,
+                new SkillDef("Wiedergeburt", SkillKind.HealAll, 1.20f, 0, "Warme Federn heilen alle Verbündeten."),
+                Passive.Regeneration, "Wo es landet, wachsen am nächsten Morgen Blumen.");
+            Add("lavadrache", new[] { "Lavadrache", "Vulkanwyrm" }, "Gen_Lavadrache", Element.Feuer, Rarity.Mythisch, Role.Angreifer,
+                1010, 159, 37, 114, 0.14f, true,
+                new SkillDef("Vulkanatem", SkillKind.AllEnemies, 1.15f, 0, "Feuriger Atem trifft alle Gegner."),
+                Passive.Elementkraft, "Schläft im Krater und träumt von Funkenregen.");
+            Add("wellenotter", new[] { "Wellenotter", "Gezeitenotter" }, "Gen_Wellenotter", Element.Wasser, Rarity.Gewoehnlich, Role.Angreifer,
+                760, 120, 32, 110, 0.14f, false,
+                new SkillDef("Wasserpeitsche", SkillKind.Cleave, 1.25f, 0, "Ein Schwanzschlag trifft das Ziel und seine Nachbarn."),
+                Passive.Ausweichen, "Schwimmt lieber rückwärts – einfach, weil es geht.");
+            Add("nebelqualle", new[] { "Nebelqualle", "Tiefseeschimmer" }, "Gen_Nebelqualle", Element.Wasser, Rarity.Ungewoehnlich, Role.Heiler,
+                810, 85, 38, 108, 0.06f, true,
+                new SkillDef("Gezeitensegen", SkillKind.HealLowest, 2.20f, 0, "Heilt den schwächsten Verbündeten stark."),
+                Passive.Regeneration, "Leuchtet nachts in allen Farben des Meeres.");
+            Add("panzerkroete", new[] { "Panzerkröte", "Gezeitenkoloss" }, "Gen_Panzerkroete", Element.Wasser, Rarity.Episch, Role.Tank,
+                1440, 73, 68, 76, 0.05f, false,
+                new SkillDef("Muschelburg", SkillKind.ShieldAll, 0.75f, 0, "Ein Wasserpanzer schützt alle Verbündeten."),
+                Passive.Startschild, "Trägt sein Zuhause auf dem Rücken – und das ganze Team gleich mit.");
+            Add("blatthase", new[] { "Blatthase", "Blütenhase" }, "Gen_Blatthase", Element.Natur, Rarity.Gewoehnlich, Role.Heiler,
+                780, 82, 37, 108, 0.06f, true,
+                new SkillDef("Kleeregen", SkillKind.HealAll, 1.00f, 0, "Kleeblätter regnen auf alle Verbündeten und heilen sie."),
+                Passive.Regeneration, "Wo er hoppelt, sprießt sofort frischer Klee.");
+            Add("moosbaer", new[] { "Moosbär", "Waldkoloss" }, "Gen_Moosbaer", Element.Natur, Rarity.Selten, Role.Tank,
+                1300, 69, 63, 76, 0.05f, false,
+                new SkillDef("Wurzelgriff", SkillKind.Stun, 1.10f, 1, "Wurzeln packen ein Ziel und betäuben es."),
+                Passive.Regeneration, "Auf seinem Rücken nisten Vögel – er hat nichts dagegen.");
+            Add("dornhirsch", new[] { "Dornhirsch", "Waldfürst" }, "Gen_Dornhirsch", Element.Natur, Rarity.Episch, Role.Support,
+                1000, 109, 43, 108, 0.09f, true,
+                new SkillDef("Dornenkrone", SkillKind.DebuffDefense, 0.35f, 3, "Dornen senken die Verteidigung aller Gegner um 35 %."),
+                Passive.Elementkraft, "Sein Geweih trägt jeden Frühling neue Blüten.");
+            Add("felsdachs", new[] { "Felsdachs", "Bergbrecher" }, "Gen_Felsdachs", Element.Erde, Rarity.Gewoehnlich, Role.Tank,
+                1200, 64, 60, 76, 0.05f, false,
+                new SkillDef("Grabwall", SkillKind.Taunt, 0.90f, 3, "Gräbt sich ein: Schild und provozieren."),
+                Passive.Startschild, "Gräbt sich durch Fels, als wäre es Pudding.");
+            Add("sandgecko", new[] { "Sandgecko", "Wüstenwächter" }, "Gen_Sandgecko", Element.Erde, Rarity.Ungewoehnlich, Role.Angreifer,
+                790, 125, 33, 110, 0.14f, false,
+                new SkillDef("Sandsturm", SkillKind.BackLine, 1.25f, 0, "Wirbelt Sand auf die hintere Reihe der Gegner."),
+                Passive.Ausweichen, "Kann tagelang regungslos in der Sonne liegen.");
+            Add("steingolem", new[] { "Steingolem", "Bergtitan" }, "Gen_Steingolem", Element.Erde, Rarity.Legendaer, Role.Tank,
+                1580, 73, 74, 76, 0.05f, false,
+                new SkillDef("Erdbeben", SkillKind.AllEnemies, 0.95f, 0, "Ein Stampfer erschüttert alle Gegner."),
+                Passive.Dornen, "Wurde aus einem ganzen Hügel geformt – und ist noch nicht fertig.");
+            Add("windfalke", new[] { "Windfalke", "Sturmschwinge" }, "Gen_Windfalke", Element.Luft, Rarity.Ungewoehnlich, Role.Angreifer,
+                790, 125, 33, 114, 0.14f, true,
+                new SkillDef("Sturzflug", SkillKind.Execute, 1.60f, 0, "Doppelter Schaden gegen angeschlagene Gegner."),
+                Passive.Kritmeister, "Sieht eine Maus aus drei Kilometern Höhe.");
+            Add("wolkenschaf", new[] { "Wolkenschaf", "Gewitterwidder" }, "Gen_Wolkenschaf", Element.Luft, Rarity.Gewoehnlich, Role.Support,
+                880, 96, 40, 108, 0.09f, true,
+                new SkillDef("Schäfchenwolke", SkillKind.ShieldAll, 0.55f, 0, "Weiche Wolken schützen alle Verbündeten."),
+                Passive.Startschild, "Hüpft am liebsten auf Wolken. Fällt dabei manchmal runter.");
+            Add("sturmgreif", new[] { "Sturmgreif", "Himmelsgreif" }, "Gen_Sturmgreif", Element.Luft, Rarity.Legendaer, Role.Angreifer,
+                960, 151, 36, 110, 0.14f, false,
+                new SkillDef("Wirbelsturm", SkillKind.AllEnemies, 1.05f, 0, "Ein Wirbelsturm trifft alle Gegner."),
+                Passive.Ausweichen, "Halb Adler, halb Löwe, ganz Wind.");
+            Add("funkmaus", new[] { "Funkmaus", "Blitzratte" }, "Gen_Funkmaus", Element.Blitz, Rarity.Gewoehnlich, Role.Angreifer,
+                760, 120, 32, 114, 0.14f, true,
+                new SkillDef("Funkenschlag", SkillKind.Chain, 1.25f, 0, "Ein Funke springt auf bis zu drei Gegner."),
+                Passive.Kritmeister, "Lädt sich auf, indem sie über Teppiche rennt.");
+            Add("voltwolf", new[] { "Voltwolf", "Donnerheuler" }, "Gen_Voltwolf", Element.Blitz, Rarity.Selten, Role.Angreifer,
+                820, 130, 34, 110, 0.14f, false,
+                new SkillDef("Donnerbiss", SkillKind.Stun, 1.45f, 1, "Ein elektrischer Biss betäubt das Ziel."),
+                Passive.Wut, "Bei Gewitter heult er mit dem Donner um die Wette.");
+            Add("volttiger", new[] { "Volttiger", "Gewittertiger" }, "Gen_Volttiger", Element.Blitz, Rarity.Episch, Role.Angreifer,
+                870, 137, 35, 110, 0.14f, false,
+                new SkillDef("Blitzklaue", SkillKind.Strike, 2.00f, 0, "Ein gewaltiger, elektrisch geladener Hieb."),
+                Passive.Kritmeister, "Seine Streifen leuchten, kurz bevor er zuschlägt.");
+            Add("frostwolf", new[] { "Frostwolf", "Gletscherwolf" }, "Gen_Frostwolf", Element.Eis, Rarity.Selten, Role.Angreifer,
+                820, 130, 34, 110, 0.14f, false,
+                new SkillDef("Frostbiss", SkillKind.Stun, 1.40f, 1, "Ein eisiger Biss lässt das Ziel erstarren."),
+                Passive.Elementkraft, "Sein Atem lässt Pfützen in Sekunden gefrieren.");
+            Add("schneeeule", new[] { "Schneeeule", "Polarkauz" }, "Gen_Schneeeule", Element.Eis, Rarity.Ungewoehnlich, Role.Support,
+                920, 100, 41, 108, 0.09f, true,
+                new SkillDef("Schneegestöber", SkillKind.DebuffDefense, 0.30f, 3, "Senkt die Verteidigung aller Gegner um 30 %."),
+                Passive.Ausweichen, "Ihre Federn knistern leise, wenn es schneit.");
+            Add("eisbaer", new[] { "Eisbär", "Gletscherkönig" }, "Gen_Eisbaer", Element.Eis, Rarity.Episch, Role.Tank,
+                1440, 73, 68, 76, 0.05f, false,
+                new SkillDef("Gletscherwall", SkillKind.Taunt, 1.10f, 3, "Ein Eispanzer und provozierendes Brüllen."),
+                Passive.Startschild, "Schläft im Winter – und der Winter ist bei ihm lang.");
+            Add("lumifuchs", new[] { "Lumifuchs", "Sonnenfuchs" }, "Gen_Lumifuchs", Element.Licht, Rarity.Episch, Role.Heiler,
+                890, 93, 40, 108, 0.06f, true,
+                new SkillDef("Morgenglanz", SkillKind.HealAll, 1.25f, 0, "Sanftes Licht heilt alle Verbündeten."),
+                Passive.Regeneration, "Leuchtet sanft, wenn jemand in seiner Nähe traurig ist.");
+            Add("sternenkitz", new[] { "Sternenkitz", "Himmelshirsch" }, "Gen_Sternenkitz", Element.Licht, Rarity.Selten, Role.Support,
+                950, 104, 42, 108, 0.09f, true,
+                new SkillDef("Sternenstaub", SkillKind.BuffAttack, 0.30f, 3, "Alle Verbündeten erhalten +30 % Angriff."),
+                Passive.Startschild, "Seine Flecken sind Sternbilder, die noch niemand kennt.");
+            Add("glanzfalter", new[] { "Glanzfalter", "Lichtschwinge" }, "Gen_Glanzfalter", Element.Licht, Rarity.Ungewoehnlich, Role.Heiler,
+                810, 85, 38, 108, 0.06f, true,
+                new SkillDef("Lichtstaub", SkillKind.HealLowest, 2.10f, 0, "Leuchtender Staub heilt den schwächsten Verbündeten."),
+                Passive.Ausweichen, "Folgt Wanderern, die sich im Wald verlaufen haben.");
+            Add("schattenkatze", new[] { "Schattenkatze", "Nachtpanther" }, "Gen_Schattenkatze", Element.Schatten, Rarity.Ungewoehnlich, Role.Angreifer,
+                790, 125, 33, 110, 0.14f, false,
+                new SkillDef("Schattensprung", SkillKind.Execute, 1.55f, 0, "Springt aus dem Schatten – doppelter Schaden gegen Angeschlagene."),
+                Passive.Ausweichen, "Ist immer genau dort, wo du nicht hinschaust.");
+            Add("nachtgeist", new[] { "Nachtgeist", "Albtraumschleier" }, "Gen_Nachtgeist", Element.Schatten, Rarity.Gewoehnlich, Role.Support,
+                880, 96, 40, 108, 0.09f, true,
+                new SkillDef("Albdruck", SkillKind.DebuffDefense, 0.25f, 3, "Senkt die Verteidigung aller Gegner um 25 %."),
+                Passive.Lebensraub, "Kichert leise unter dem Bett. Meistens harmlos.");
+            Add("schattendrache", new[] { "Schattendrache", "Finsterwyrm" }, "Gen_Schattendrache", Element.Schatten, Rarity.Legendaer, Role.Angreifer,
+                960, 151, 36, 114, 0.14f, true,
+                new SkillDef("Finsternis", SkillKind.AllEnemies, 1.10f, 0, "Dunkle Flammen treffen alle Gegner."),
+                Passive.Lebensraub, "Verschluckt das Mondlicht, wenn er wütend ist.");
+            Add("runenfuchs", new[] { "Runenfuchs", "Arkanfuchs" }, "Gen_Runenfuchs", Element.Arkan, Rarity.Selten, Role.Support,
+                950, 104, 42, 108, 0.09f, true,
+                new SkillDef("Runenkreis", SkillKind.BuffAttack, 0.30f, 3, "Leuchtende Runen geben allen Verbündeten +30 % Angriff."),
+                Passive.Elementkraft, "Die Muster in seinem Fell ändern sich mit jedem Vollmond.");
+            Add("arkanwichtel", new[] { "Arkanwichtel", "Runenmagier" }, "Gen_Arkanwichtel", Element.Arkan, Rarity.Gewoehnlich, Role.Heiler,
+                780, 82, 37, 108, 0.06f, true,
+                new SkillDef("Heilrune", SkillKind.HealLowest, 2.00f, 0, "Eine Rune heilt den schwächsten Verbündeten."),
+                Passive.Regeneration, "Kritzelt Zaubersprüche in den Sand und vergisst sie sofort.");
+            Add("zauberkauz", new[] { "Zauberkauz", "Sternenkauz" }, "Gen_Zauberkauz", Element.Arkan, Rarity.Episch, Role.Support,
+                1000, 109, 43, 108, 0.09f, true,
+                new SkillDef("Sternenschauer", SkillKind.Chain, 1.35f, 0, "Ein Sternenstrahl springt auf bis zu drei Gegner."),
+                Passive.Elementkraft, "Liest nachts in den Sternen – und schläft tagsüber in Büchern.");
+            Add("sternendrache", new[] { "Sternendrache", "Kosmoswyrm" }, "Gen_Sternendrache", Element.Arkan, Rarity.Mythisch, Role.Support,
+                1160, 121, 49, 108, 0.09f, true,
+                new SkillDef("Kosmosflut", SkillKind.AllEnemies, 1.00f, 0, "Ein Sternenregen trifft alle Gegner."),
+                Passive.Regeneration, "Trägt einen ganzen Sternenhimmel auf seinen Schuppen.");
+            Add("blitzdrache", new[] { "Blitzdrachling", "Sturmdrache" }, "Gen_Blitzdrache", Element.Blitz, Rarity.Legendaer, Role.Angreifer,
+                910, 144, 36, 114, 0.14f, true,
+                new SkillDef("Gewitterfront", SkillKind.Chain, 1.55f, 0, "Eine Gewitterfront springt auf bis zu drei Gegner."),
+                Passive.Kritmeister, "Lädt sich in Gewitterwolken auf, bis seine Schuppen knistern.");
+            Add("frostdrache", new[] { "Frostdrachling", "Eiswyrm" }, "Gen_Frostdrache", Element.Eis, Rarity.Legendaer, Role.Support,
+                1060, 115, 45, 108, 0.09f, true,
+                new SkillDef("Eissturm", SkillKind.DebuffDefense, 0.40f, 3, "Ein Eissturm senkt die Verteidigung aller Gegner um 40 %."),
+                Passive.Startschild, "Wo er schläft, wachsen Eisblumen an den Fenstern.");
 
             // ---------- Bosse (nur in der Kampagne) ----------
             AddBoss("boss_hain", "Uralter Hainriese", "Tree", Element.Natur, 3600, 105, 60, 80,

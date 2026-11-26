@@ -55,8 +55,8 @@ namespace Kesselwerk
             switch (region)
             {
                 case 1: // Vulkan
-                    filter = new Color(1f, 0.82f, 0.72f); fog = new Color(0.55f, 0.3f, 0.22f); sunCol = new Color(1f, 0.6f, 0.4f);
-                    temp = 35f; sunI = 1.3f; fogStart = 12f; fogEnd = 45f;
+                    filter = new Color(1f, 0.93f, 0.87f); fog = new Color(0.5f, 0.3f, 0.24f); sunCol = new Color(1f, 0.82f, 0.68f);
+                    temp = 18f; sunI = 1.3f; fogStart = 12f; fogEnd = 45f;
                     RenderSettings.ambientSkyColor = new Color(0.7f, 0.42f, 0.35f);
                     RenderSettings.ambientEquatorColor = new Color(0.65f, 0.4f, 0.3f);
                     break;
@@ -67,7 +67,7 @@ namespace Kesselwerk
                     RenderSettings.ambientEquatorColor = new Color(0.8f, 0.85f, 0.95f);
                     break;
                 case 3: // Schatten
-                    filter = new Color(0.78f, 0.7f, 0.95f); fog = new Color(0.18f, 0.12f, 0.28f); sunCol = new Color(0.7f, 0.6f, 1f);
+                    filter = new Color(0.88f, 0.84f, 0.98f); fog = new Color(0.18f, 0.12f, 0.28f); sunCol = new Color(0.8f, 0.75f, 1f);
                     temp = -10f; sunI = 0.9f; fogStart = 8f; fogEnd = 38f;
                     RenderSettings.ambientSkyColor = new Color(0.35f, 0.3f, 0.55f);
                     RenderSettings.ambientEquatorColor = new Color(0.3f, 0.25f, 0.4f);

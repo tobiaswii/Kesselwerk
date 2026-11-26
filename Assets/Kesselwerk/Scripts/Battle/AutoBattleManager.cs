@@ -68,7 +68,9 @@ namespace Kesselwerk
                 title = $"{Campaign.RegionNames[stage.region]}  ·  {stage.name}";
             }
             ArenaBuilder.ApplyRegionMood(stage.region);
-            result = BattleSim.Run(playerTeam, enemyTeam, seed);
+            WeatherFx.DressRegion(stage.region);
+            weather = arena != null ? Weather.Klar : Campaign.WeatherFor(stage.region, stage.index);
+            result = BattleSim.Run(playerTeam, enemyTeam, seed, weather);
             Debug.Log($"Kesselwerk: Kampf {title} berechnet – Startwert {seed}, {result.events.Count} Ereignisse, Sieger {(result.winner == 0 ? "Spieler" : "Gegner")}");
             if (arena != null && arena.serverWinner != result.winner)
                 Debug.LogWarning("Kesselwerk: Arena-Ergebnis weicht vom Server ab – es zählt das Server-Ergebnis.");
@@ -84,6 +86,7 @@ namespace Kesselwerk
 
             hud = gameObject.AddComponent<BattleHud>();
             hud.Init(this, cam, title);
+            WeatherFx.Create(weather, c => hud.Flash(c));
 
             foreach (var u in result.units)
             {
@@ -98,6 +101,8 @@ namespace Kesselwerk
             Sound.Music(true);
             StartCoroutine(Run());
         }
+
+        Weather weather;
 
         void OnDestroy() => Time.timeScale = 1f;
 
@@ -153,6 +158,11 @@ namespace Kesselwerk
             }
 
             hud.ShowSynergies(Synergies.For(playerTeam), Synergies.For(enemyTeam));
+            if (weather != Weather.Klar)
+            {
+                hud.Banner($"Wetter: {WeatherInfo.Name(weather)}\n<size=60%>{WeatherInfo.Effect(weather)}</size>", 1.4f);
+                yield return new WaitForSeconds(1.6f);
+            }
             hud.Banner("KAMPF!", 0.6f);
             yield return new WaitForSeconds(0.9f);
 
@@ -175,7 +185,7 @@ namespace Kesselwerk
                 {
                     Apply(e, true);
                     cursor++;
-                    if (e.type == EvType.BurnTick || e.type == EvType.Stunned) yield return new WaitForSeconds(0.35f);
+                    if (e.type == EvType.BurnTick || e.type == EvType.PoisonTick || e.type == EvType.Stunned) yield return new WaitForSeconds(0.35f);
                 }
             }
 
@@ -197,7 +207,7 @@ namespace Kesselwerk
             while (i < ev.Count)
             {
                 var t = ev[i].type;
-                if (t == EvType.Attack || t == EvType.Skill || t == EvType.Stunned || t == EvType.BurnTick || t == EvType.End) break;
+                if (t == EvType.Attack || t == EvType.Skill || t == EvType.Stunned || t == EvType.BurnTick || t == EvType.PoisonTick || t == EvType.End) break;
                 // Regeneration zu Beginn der nächsten Aktion gehört nicht mehr dazu
                 if (t == EvType.Heal && ev[i].actor == ev[i].target && i + 1 < ev.Count &&
                     (ev[i + 1].type == EvType.Attack || ev[i + 1].type == EvType.Skill || ev[i + 1].type == EvType.Stunned) && ev[i + 1].actor == ev[i].actor)
@@ -240,7 +250,7 @@ namespace Kesselwerk
                     targets.Add(tv);
             Creature main = e.target >= 0 && views.ContainsKey(e.target) ? views[e.target] : (targets.Count > 0 ? targets[0] : null);
 
-            bool single = e.skill == SkillKind.Strike || e.skill == SkillKind.Burn || e.skill == SkillKind.Stun ||
+            bool single = e.skill == SkillKind.Strike || e.skill == SkillKind.Burn || e.skill == SkillKind.Stun || e.skill == SkillKind.Freeze ||
                           e.skill == SkillKind.Execute || e.skill == SkillKind.Drain || e.skill == SkillKind.Cleave;
             bool applied = false;
             System.Action impact = () =>
@@ -381,6 +391,7 @@ namespace Kesselwerk
             {
                 case EvType.Damage:
                 case EvType.BurnTick:
+                case EvType.PoisonTick:
                 {
                     float v = e.value;
                     float absorbed = Mathf.Min(shield[e.target], v);
@@ -390,6 +401,13 @@ namespace Kesselwerk
                     UpdateBar(e.target);
                     if (!show) break;
                     var t = views[e.target];
+                    if (e.type == EvType.PoisonTick)
+                    {
+                        Fx.Burst(t.Center, new Color(0.6f, 2.2f, 0.4f), 18, 1.5f, 0.2f, 0.6f, -0.6f);
+                        hud.Float(t.Top, e.value.ToString(), new Color(0.6f, 1f, 0.35f), 36f);
+                        t.Hit(t.transform.position + t.transform.forward, false);
+                        break;
+                    }
                     if (e.type == EvType.BurnTick)
                     {
                         Fx.Burst(t.Center, new Color(3f, 1.1f, 0.3f), 20, 2f, 0.2f, 0.5f, -1f);
@@ -453,6 +471,38 @@ namespace Kesselwerk
                     break;
                 case EvType.Stunned:
                     if (show) hud.Float(views[e.actor].Top, "setzt aus", new Color(1f, 0.95f, 0.6f), 30f);
+                    break;
+                case EvType.Frost:
+                    if (show)
+                    {
+                        var ft = views[e.target];
+                        hud.Float(ft.Top, "Vereist!", new Color(0.6f, 0.9f, 1f), 32f);
+                        Fx.Burst(ft.Center, new Color(1.2f, 2.2f, 3f), 22, 2.5f, 0.15f, 0.6f, 0.3f);
+                        Fx.Ring(ft.transform.position + Vector3.up * 0.05f, new Color(1.2f, 2.2f, 3f));
+                        ft.Glow(new Color(0.5f, 0.8f, 1f));
+                    }
+                    break;
+                case EvType.Poison:
+                    if (show)
+                    {
+                        var pt = views[e.target];
+                        hud.Float(pt.Top, e.value > 1 ? $"Gift ×{e.value}" : "Vergiftet!", new Color(0.65f, 1f, 0.35f), 30f);
+                        Fx.Burst(pt.Center, new Color(0.7f, 2.4f, 0.4f), 16, 1.2f, 0.25f, 0.8f, -0.4f);
+                        pt.Glow(new Color(0.5f, 1f, 0.3f));
+                    }
+                    break;
+                case EvType.Phase:
+                    if (show)
+                    {
+                        var boss = views[e.actor];
+                        bool despair = e.text == "Verzweiflung";
+                        hud.Banner(despair ? "<color=#ff3c6e>VERZWEIFLUNG!</color>  Der Boss schlägt um sich" : "<color=#8fd0ff>SCHILDWALL!</color>  Der Boss schützt sich", 1.1f);
+                        hud.Flash(despair ? new Color(0.9f, 0.1f, 0.3f, 0.45f) : new Color(0.4f, 0.7f, 1f, 0.35f));
+                        Fx.Ring(boss.transform.position + Vector3.up * 0.1f, despair ? new Color(3f, 0.3f, 0.5f) : new Color(0.8f, 1.6f, 3f));
+                        Fx.Pillar(boss.transform.position, despair ? new Color(3f, 0.4f, 0.6f) : new Color(0.8f, 1.5f, 3f), boss.Height * 1.5f, 80);
+                        Shake(despair ? 0.7f : 0.35f, 0.3f);
+                        Sound.Voice(boss.def, 1f);
+                    }
                     break;
                 case EvType.Dodge:
                     if (show) { hud.Float(views[e.target].Top, "Ausgewichen", Color.white, 30f); Sound.Play("zisch", 0.5f, 1.5f); }

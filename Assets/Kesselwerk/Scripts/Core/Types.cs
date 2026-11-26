@@ -5,6 +5,42 @@ namespace Kesselwerk.Core
     /// <summary>Die zehn Elemente. Reihenfolge nicht ändern (wird gespeichert).</summary>
     public enum Element { Feuer, Wasser, Natur, Erde, Luft, Blitz, Eis, Licht, Schatten, Arkan }
 
+    /// <summary>Wetter im Kampf – verändert Werte und Effekte (Arena immer Klar).</summary>
+    public enum Weather { Klar, Hitze, Schnee, Nebel, Sturm, Regen }
+
+    public static class WeatherInfo
+    {
+        public static string Name(Weather w) => w switch
+        {
+            Weather.Hitze => "Hitze", Weather.Schnee => "Schneefall", Weather.Nebel => "Nebel",
+            Weather.Sturm => "Gewittersturm", Weather.Regen => "Regen", _ => "Klar",
+        };
+
+        public static string Effect(Weather w) => w switch
+        {
+            Weather.Hitze => "Feuer +15 %, Brand stärker · Wasser und Eis −10 %",
+            Weather.Schnee => "Alle langsamer · Eis und Wasser +15 %, Frost hält länger",
+            Weather.Nebel => "Alle weichen öfter aus · Schatten und Licht +15 %",
+            Weather.Sturm => "Luft und Blitz +15 %, mehr Kritische Treffer",
+            Weather.Regen => "Wasser und Natur +15 %, Brand schwächer, Heilung +10 %",
+            _ => "Natur heilt sich langsam",
+        };
+
+        /// <summary>Angriffsbonus eines Elements bei diesem Wetter.</summary>
+        public static float AtkMul(Weather w, Element e)
+        {
+            switch (w)
+            {
+                case Weather.Hitze: return e == Element.Feuer ? 1.15f : (e == Element.Wasser || e == Element.Eis) ? 0.9f : 1f;
+                case Weather.Schnee: return (e == Element.Eis || e == Element.Wasser) ? 1.15f : 1f;
+                case Weather.Nebel: return (e == Element.Schatten || e == Element.Licht) ? 1.15f : 1f;
+                case Weather.Sturm: return (e == Element.Luft || e == Element.Blitz) ? 1.15f : 1f;
+                case Weather.Regen: return (e == Element.Wasser || e == Element.Natur) ? 1.15f : e == Element.Feuer ? 0.92f : 1f;
+            }
+            return 1f;
+        }
+    }
+
     /// <summary>Seltenheit beeinflusst Beschwörungschance, Aussehen und Entwicklung – nicht allein die Stärke.</summary>
     public enum Rarity { Gewoehnlich, Ungewoehnlich, Selten, Episch, Legendaer, Mythisch }
 
