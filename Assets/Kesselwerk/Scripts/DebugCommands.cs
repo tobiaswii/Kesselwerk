@@ -69,6 +69,9 @@ namespace Kesselwerk
                 case "state":
                     return $"Gold {D.gold}, Kristalle {D.crystals}, Kreaturen {D.creatures.Count}, Team {D.TeamCount()}, Fortschritt {D.regionProgress[0]}/{D.regionProgress[1]}, Siege {D.wins}/{D.battles}" +
                            (AutoBattleManager.Instance != null ? $", Kampf läuft (fertig: {AutoBattleManager.Instance.Finished})" : "");
+                case "caption":
+                    Caption.Show(cmd.Length > 8 ? cmd.Substring(8) : "");
+                    return "ok";
                 case "timescale":
                     Time.timeScale = float.Parse(p[1], System.Globalization.CultureInfo.InvariantCulture);
                     return "ok";

@@ -57,8 +57,17 @@ namespace Kesselwerk.EditorTools
             try { File.WriteAllText(path, text); } catch { }
         }
 
+        static string recDir;
+        static int recFrame;
+        static double recInterval, recNext;
+
         static void Poll()
         {
+            if (recDir != null && EditorApplication.isPlaying && EditorApplication.timeSinceStartup >= recNext)
+            {
+                recNext = EditorApplication.timeSinceStartup + recInterval;
+                ScreenCapture.CaptureScreenshot(Path.Combine(recDir, $"f{recFrame++:00000}.png"));
+            }
             if (EditorApplication.timeSinceStartup < nextPoll) return;
             nextPoll = EditorApplication.timeSinceStartup + 0.4;
             if (!File.Exists(CmdFile)) return;
@@ -113,6 +122,18 @@ namespace Kesselwerk.EditorTools
                 {
                     var wh = arg.Split(' ');
                     return SetGameViewSize(int.Parse(wh[0]), int.Parse(wh[1]));
+                }
+                case "record":
+                {
+                    // record start NAME FPS | record stop
+                    var a = arg.Split(' ');
+                    if (a[0] == "stop") { string d = recDir; recDir = null; return $"Aufnahme beendet: {recFrame} Bilder in {d}"; }
+                    recDir = Path.Combine(Dir, "rec_" + (a.Length > 1 ? a[1] : "demo"));
+                    Directory.CreateDirectory(recDir);
+                    recFrame = 0;
+                    recInterval = 1.0 / (a.Length > 2 ? double.Parse(a[2], System.Globalization.CultureInfo.InvariantCulture) : 8.0);
+                    recNext = 0;
+                    return "Aufnahme läuft: " + recDir;
                 }
                 case "tests":
                     RunTests();

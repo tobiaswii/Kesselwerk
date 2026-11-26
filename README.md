@@ -33,3 +33,23 @@ Ein Sammelkartenspiel für iPhone und iPad, in dem eigene Kreaturen in animierte
 Alle verwendeten fremden Assets sind in [ASSETS.md](ASSETS.md) mit Quelle und Lizenz aufgeführt.
 
 © Kesselwerk. Alle Rechte vorbehalten.
+
+## Stand 26.11.2026 – Umbau zum 3D-Monster-Autokampf
+
+- **Spiel:** Sammeln → Team (6 Felder, vorne/hinten) → vollautomatischer 3D-Kampf → Belohnungen.
+- **Inhalt:** 24 Kreaturen (Quaternius, CC0), 10 Elemente, 6 Seltenheiten, Synergien, Fusion (Sterne), Entwicklung, Beschwörung mit Garantie, Kampagne mit 2 Regionen (je 8 Stufen inkl. Elite und Boss), tägliche Aufgaben, Login-Belohnung, Einstellungen (Musik/Effekte getrennt).
+- **Kampfkern:** `Assets/Kesselwerk/Scripts/Core` – reines C#, deterministisch (gleiche Teams + Startwert = gleiches Ergebnis). 34 automatische Tests in `Assets/Kesselwerk/Tests` (Unity Test Runner, EditMode) – alle bestanden.
+- **Server-Prototyp:** `Server/` (ASP.NET, nutzt denselben Kampfkern) prüft gemeldete Kampfergebnisse nach. Lokal getestet, inkl. Nachrechnen eines echten Unity-Kampfes. Noch nicht auf dem Homeserver installiert.
+- **Test-Brücke (nur Editor):** `Assets/Kesselwerk/Editor/ClaudeBridge.cs` – Befehle über `ClaudeBridge/cmd.txt` (play, stop, shot, tests, size, record, game …).
+
+### Zuhause weitermachen
+1. Repo klonen bzw. `git pull`.
+2. Im Unity Hub das Projekt öffnen (Unity 6000.6.10f1, beim ersten Öffnen dauert der Import etwas).
+3. Auf Play drücken – das Spiel startet von selbst im Menü (egal welche Szene offen ist).
+4. Tests: Window › General › Test Runner › EditMode › Run All.
+
+### Offen
+- Demo-Video fertig schneiden (Aufnahmen liegen lokal auf dem Arbeits-PC in `ClaudeBridge/rec_demo2`, nicht im Repo)
+- Online-Teil auf dem Homeserver (Konten, Speicherstand, Ranglisten, PvP)
+- Weitere Regionen, Ausrüstung, Basisbau
+- Echte Sounds statt synthetischer Platzhalter
