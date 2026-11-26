@@ -83,6 +83,25 @@ namespace Kesselwerk
                 case "caption":
                     Caption.Show(cmd.Length > 8 ? cmd.Substring(8) : "");
                     return "ok";
+                case "arena":
+                {
+                    // arena register|defense|find|attack
+                    var m = MenuUI.Instance;
+                    if (m == null) return "kein Menü";
+                    m.Show(MenuPage.Arena);
+                    switch (p.Length > 1 ? p[1] : "")
+                    {
+                        case "register": m.ArenaRegister(); break;
+                        case "defense": m.ArenaDefense(); break;
+                        case "find": m.ArenaFind(); break;
+                        case "attack": m.ArenaAttack(); break;
+                    }
+                    return "ok arena " + (Online.HasAccount ? "Konto vorhanden" : "kein Konto");
+                }
+                case "cloud":
+                    if (p.Length > 1 && p[1] == "up") Online.UploadSave(() => Debug.Log("[Cloud] hochgeladen"), e => Debug.Log("[Cloud] Fehler " + e));
+                    else Online.DownloadSave(j => Debug.Log("[Cloud] geladen " + j.Length + " Zeichen"), e => Debug.Log("[Cloud] Fehler " + e));
+                    return "ok";
                 case "timescale":
                     Time.timeScale = float.Parse(p[1], System.Globalization.CultureInfo.InvariantCulture);
                     return "ok";

@@ -416,9 +416,12 @@ namespace Kesselwerk
             }
 
             var cont = UIKit.Button(panel.transform, "Weiter", won ? "Weiter" : "Zurück", UX.Accent, () => { Sound.Play("klick"); onContinue(); }, 44f);
-            UIKit.Place((RectTransform)cont.transform, new Vector2(0.5f, 0f), new Vector2(portrait ? 200f : 260f, 90f), new Vector2(360f, 110f));
-            var retry = UIKit.Button(panel.transform, "Nochmal", "Nochmal", UX.Blue, () => { Sound.Play("klick"); onRetry(); }, 44f);
-            UIKit.Place((RectTransform)retry.transform, new Vector2(0.5f, 0f), new Vector2(portrait ? -200f : -260f, 90f), new Vector2(360f, 110f));
+            UIKit.Place((RectTransform)cont.transform, new Vector2(0.5f, 0f), new Vector2(onRetry == null ? 0f : portrait ? 200f : 260f, 90f), new Vector2(360f, 110f));
+            if (onRetry != null)
+            {
+                var retry = UIKit.Button(panel.transform, "Nochmal", "Nochmal", UX.Blue, () => { Sound.Play("klick"); onRetry(); }, 44f);
+                UIKit.Place((RectTransform)retry.transform, new Vector2(0.5f, 0f), new Vector2(portrait ? -200f : -260f, 90f), new Vector2(360f, 110f));
+            }
 
             panel.rectTransform.localScale = Vector3.one * 0.7f;
             StartCoroutine(Pop(panel.rectTransform));

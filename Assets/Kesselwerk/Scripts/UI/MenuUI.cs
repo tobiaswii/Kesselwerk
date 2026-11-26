@@ -1112,18 +1112,7 @@ namespace Kesselwerk
                     30f, Color.white, TextAlignmentOptions.TopLeft);
                 UIKit.Stretch(t.rectTransform, 40, 160, 40, 40);
                 t.enableAutoSizing = true; t.fontSizeMin = 16; t.fontSizeMax = 30;
-                var reg = Btn(left, "Online-Konto anlegen", UX.Accent, () =>
-                {
-                    string name = D.playerName == "Kesselmeister" ? "Kesselmeister" + Random.Range(100, 999) : D.playerName;
-                    Online.Register(name, r =>
-                    {
-                        D.playerName = r.name;
-                        Game.Save();
-                        Online.SetDefense(D.BuildTeam(), null, null);
-                        Toast($"Willkommen in der Arena, {r.name}!");
-                        Show(MenuPage.Arena);
-                    }, e => Toast(e));
-                }, 38f);
+                var reg = Btn(left, "Online-Konto anlegen", UX.Accent, ArenaRegister, 38f);
                 UIKit.Place((RectTransform)reg.transform, new Vector2(0.5f, 0f), new Vector2(0f, 80f), new Vector2(520f, 110f));
                 BuildBoard();
                 return;
@@ -1182,31 +1171,51 @@ namespace Kesselwerk
             row.pivot = new Vector2(0.5f, 0f);
             row.anchoredPosition = new Vector2(0f, 30f);
             row.sizeDelta = new Vector2(-40f, 100f);
-            AddAction(row, 0, "Verteidigung\n<size=70%>= aktuelles Team</size>", UX.Green, () =>
-            {
-                if (D.TeamCount() == 0) { Toast("Stelle zuerst ein Team auf."); return; }
-                Online.SetDefense(D.BuildTeam(), () => { Toast("Verteidigungsteam gespeichert."); Show(MenuPage.Arena); }, e => Toast(e));
-            });
-            AddAction(row, 1, currentMatch == null ? "Gegner suchen" : "Anderer Gegner", UX.Blue, () =>
-                Online.FindMatch(m => { currentMatch = m; Show(MenuPage.Arena); }, e => Toast(e)));
-            AddAction(row, 2, "Angreifen!", new Color(0.85f, 0.3f, 0.15f), () =>
-            {
-                if (currentMatch == null) { Toast("Suche zuerst einen Gegner."); return; }
-                if (D.TeamCount() == 0) { Toast("Stelle zuerst ein Team auf."); return; }
-                var m = currentMatch;
-                currentMatch = null;
-                Online.Fight(m.matchId, D.BuildTeam(), f =>
-                {
-                    Game.PendingArena = new ArenaFight
-                    {
-                        enemy = Online.ToTeam(f.gegnerUnits), seed = f.seed, opponent = m.gegner,
-                        serverWinner = f.sieger, delta = f.aenderung, rating = f.wertung, rank = f.rang
-                    };
-                    GameFlow.ToBattle();
-                }, e => { Toast(e); Show(MenuPage.Arena); });
-            });
+            AddAction(row, 0, "Verteidigung\n<size=70%>= aktuelles Team</size>", UX.Green, ArenaDefense);
+            AddAction(row, 1, currentMatch == null ? "Gegner suchen" : "Anderer Gegner", UX.Blue, ArenaFind);
+            AddAction(row, 2, "Angreifen!", new Color(0.85f, 0.3f, 0.15f), ArenaAttack);
 
             BuildBoard();
+        }
+
+        // --- Arena-Aktionen (auch für Testbefehle erreichbar) ---
+        public void ArenaRegister()
+        {
+            string name = D.playerName == "Kesselmeister" ? "Kesselmeister" + Random.Range(100, 999) : D.playerName;
+            Online.Register(name, r =>
+            {
+                D.playerName = r.name;
+                Game.Save();
+                Online.SetDefense(D.BuildTeam(), null, null);
+                Toast($"Willkommen in der Arena, {r.name}!");
+                Show(MenuPage.Arena);
+            }, e => Toast(e));
+        }
+
+        public void ArenaDefense()
+        {
+            if (D.TeamCount() == 0) { Toast("Stelle zuerst ein Team auf."); return; }
+            Online.SetDefense(D.BuildTeam(), () => { Toast("Verteidigungsteam gespeichert."); Show(MenuPage.Arena); }, e => Toast(e));
+        }
+
+        public void ArenaFind() =>
+            Online.FindMatch(m => { currentMatch = m; Show(MenuPage.Arena); }, e => Toast(e));
+
+        public void ArenaAttack()
+        {
+            if (currentMatch == null) { Toast("Suche zuerst einen Gegner."); return; }
+            if (D.TeamCount() == 0) { Toast("Stelle zuerst ein Team auf."); return; }
+            var m = currentMatch;
+            currentMatch = null;
+            Online.Fight(m.matchId, D.BuildTeam(), f =>
+            {
+                Game.PendingArena = new ArenaFight
+                {
+                    enemy = Online.ToTeam(f.gegnerUnits), seed = f.seed, opponent = m.gegner,
+                    serverWinner = f.sieger, delta = f.aenderung, rating = f.wertung, rank = f.rang
+                };
+                GameFlow.ToBattle();
+            }, e => { Toast(e); Show(MenuPage.Arena); });
         }
 
         void BuildBoard()

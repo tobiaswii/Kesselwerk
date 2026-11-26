@@ -520,7 +520,7 @@ namespace Kesselwerk
                 string sign = arena.delta >= 0 ? "+" : "";
                 string extra = $"<color=#9fd3ff>Arena-Wertung {sign}{arena.delta} → {arena.rating} ({arena.rank})</color>";
                 yield return new WaitForSeconds(1.8f);
-                hud.ShowResult(serverWon, rw, result, () => GameFlow.ToMenu(MenuPage.Arena), () => GameFlow.ToMenu(MenuPage.Arena), extra);
+                hud.ShowResult(serverWon, rw, result, () => GameFlow.ToMenu(MenuPage.Arena), null, extra);
             }
             else
             {
