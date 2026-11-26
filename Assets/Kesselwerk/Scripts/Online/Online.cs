@@ -19,6 +19,12 @@ namespace Kesselwerk
     [Serializable] class FightBody { public string matchId; public List<UnitSpec> units; }
     [Serializable] class NameBody { public string name; }
     [Serializable] class ErrorBody { public string error; }
+    [Serializable] public class TftGhost { public string name; public List<UnitSpec> units; }
+    [Serializable] class TftGhostList { public List<TftGhost> items; }
+    [Serializable] class BoardBody { public int stage, round; public List<UnitSpec> units; }
+    [Serializable] class PlaceBody { public int place; }
+    [Serializable] public class TftBoardEntry { public int platz, punkte, siege, top4, partien; public string name; }
+    [Serializable] class TftBoardList { public List<TftBoardEntry> items; }
 
     /// <summary>
     /// Verbindung zum Kesselwerk-Server (Homeserver). Konto = Kennung + geheimer Schlüssel auf dem Gerät.
@@ -80,6 +86,20 @@ namespace Kesselwerk
 
         public static void DownloadSave(Action<string> ok, Action<string> fail) =>
             Send("GET", "/api/v1/save", null, true, ok, fail);
+
+        // ---------------- Kesselschlacht ----------------
+        public static void TftBoard(int stage, int round, TeamSpec team, Action ok, Action<string> fail) =>
+            Send("PUT", "/api/v1/tft/board", JsonUtility.ToJson(new BoardBody { stage = stage, round = round, units = team.units }), true, _ => ok?.Invoke(), fail);
+
+        public static void TftGhosts(int stage, int round, Action<List<TftGhost>> ok, Action<string> fail) =>
+            Send("GET", $"/api/v1/tft/ghosts?stage={stage}&round={round}", null, true,
+                json => ok?.Invoke(JsonUtility.FromJson<TftGhostList>("{\"items\":" + json + "}").items), fail);
+
+        public static void TftResult(int place, Action ok, Action<string> fail) =>
+            Send("POST", "/api/v1/tft/result", JsonUtility.ToJson(new PlaceBody { place = place }), true, _ => ok?.Invoke(), fail);
+
+        public static void TftLeaderboard(Action<List<TftBoardEntry>> ok, Action<string> fail) =>
+            Send("GET", "/api/v1/tft/leaderboard", null, false, json => ok?.Invoke(JsonUtility.FromJson<TftBoardList>("{\"items\":" + json + "}").items), fail);
 
         // ------------------------------------------------------------------
 

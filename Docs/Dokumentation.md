@@ -96,3 +96,15 @@ Siehe Projekt-Dokument „kesselwerk-server.md“ (Homeserver). Kurz: Docker-Sta
 - Musik und Soundeffekte (lizenzfreie Quellen oder selbst erzeugt)
 - iOS-Build über Mac oder Cloud-Build
 - Weitere Spielmodi (Dungeons, Tagesevents, Weltboss) nach Bedarf
+
+## Kesselschlacht (Hauptmodus seit 26.11.2026, Prinzip wie Teamfight Tactics)
+
+- **Ablauf:** 8 Spieler (du + 7 Computer-Gegner, online durch echte Aufstellungen ersetzt), je 100 Leben. Runden 1-1 bis 1-3 und jede 7. Runde: wilde Monster. Sonst Kampf gegen einen anderen Spieler; Verlierer verliert Rundenschaden + Sterne der überlebenden Gegner.
+- **Wirtschaft:** Einkommen 5 + Zinsen (1 je 10 Gold, max. 5) + Serienbonus (2/3/4/5+ Siege oder Niederlagen in Folge: +1/+1/+2/+3). Neu würfeln 2 Gold, Erfahrung 4 Gold für 4 EP, Stufe 1–9 = Anzahl Monster auf dem Feld.
+- **Laden:** 5 Plätze, Kosten 1–5 nach Seltenheit, Chancen je Stufe (Tabelle `Tft.Odds`). Im Laden erscheinen alle Monster mit Kosten 1–2 und alles aus deiner Sammlung → Beschwören schaltet neue Monster für den Laden frei.
+- **Sterne:** 3 gleiche = 2 Sterne, 3 × 2 Sterne = 3 Sterne. Sterne → Kampfstufe 1/13/30; höhere Sterne schalten die in der Sammlung gewählten Attacken frei und erhöhen deren Rang.
+- **Wabenfeld:** 7 × 4 Waben je Seite (`Core/Hex.cs`), Nahkampf Reichweite 1, Fernkampf 3, Monster laufen bis zu 2 Waben je Zug. Erschöpfung ab Aktion 40 (Schaden steigt, Heilung/Schilde sinken) verhindert Patt-Kämpfe.
+- **Belohnung:** Kristalle nach Platz (300/200/150/100/50) und Gold; laufende Partien werden gespeichert (PlayerPrefs `kesselwerk_tft`).
+- **Online:** `PUT /api/v1/tft/board`, `GET /api/v1/tft/ghosts`, `POST /api/v1/tft/result`, `GET /api/v1/tft/leaderboard`; öffentliche Bestenliste unter https://kesselwerk.wittmer.id/
+- **Debug:** `tft new | auto | fight | state`, `moves <id> <i> [j]`, `movepick <id>`, `pool <id>`.
+- **Code:** `Core/Tft.cs` (Regeln, Computer-Gegner), `Core/Hex.cs`, `Tft/TftSession.cs` (Ablauf, Speichern, Online), `Tft/TftManager.cs` (Planungsansicht).

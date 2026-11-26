@@ -17,6 +17,28 @@ namespace Kesselwerk
 
         public static TftPlayer Me => Current?.players[0];
 
+        // ---------------- Online: echte Aufstellungen anderer Spieler als Gegner ----------------
+        static readonly Dictionary<string, List<TftGhost>> ghosts = new Dictionary<string, List<TftGhost>>();
+        public static int GhostCount => Current != null && ghosts.TryGetValue(Current.RoundName, out var l) ? l.Count : 0;
+
+        /// <summary>Für die aktuelle Runde Gegner-Aufstellungen vom Server holen (still, ohne Fehlermeldung).</summary>
+        public static void FetchGhosts(System.Action done = null)
+        {
+            if (Current == null || !Online.HasAccount) return;
+            string key = Current.RoundName;
+            if (ghosts.ContainsKey(key)) { done?.Invoke(); return; }
+            Online.TftGhosts(Current.stage, Current.round, list => { ghosts[key] = list ?? new List<TftGhost>(); done?.Invoke(); }, _ => { });
+        }
+
+        static TftGhost TakeGhost()
+        {
+            if (Current == null || !ghosts.TryGetValue(Current.RoundName, out var l) || l.Count == 0) return null;
+            var g = l[Random.Range(0, l.Count)];
+            l.Remove(g);
+            var t = Online.ToTeam(g.units);
+            return t.units.Count > 0 && t.IsValid(out _) ? g : null;
+        }
+
         // ---------------- Speichern (übersteht das Schließen der App) ----------------
         const string Key = "kesselwerk_tft";
 
@@ -116,6 +138,8 @@ namespace Kesselwerk
             Current = TftGame.New(name, Unlocked(), Random.Range(1, int.MaxValue));
             Fight = null; Report = ""; RewardGiven = false; LastReward = 0;
             Save();
+            // Für Online-Gegner und Bestenliste ein Konto anlegen (nur Name, keine Anmeldung nötig)
+            if (!Online.HasAccount) Online.Register(name, _ => FetchGhosts(), _ => { });
         }
 
         /// <summary>Kampfphase: alle anderen Kämpfe sofort rechnen, den eigenen vorbereiten. false = kein Kampf zum Zeigen.</summary>
@@ -139,6 +163,14 @@ namespace Kesselwerk
             TeamA = g.TeamOf(0, Moves);
             TeamB = g.TeamOf(mine.b, null);
             Opponent = mine.creep ? "Wilde Monster" : g.players[mine.b].name + (mine.ghost ? " (Spiegelbild)" : "");
+            // Online: eigene Aufstellung hochladen, Computer-Gegner durch echte Aufstellung ersetzen
+            if (Online.HasAccount && TeamA.units.Count > 0)
+                Online.TftBoard(g.stage, g.round, TeamA, null, _ => { });
+            if (!mine.creep && mine.b > 0)
+            {
+                var gh = TakeGhost();
+                if (gh != null) { TeamB = Online.ToTeam(gh.units); Opponent = $"{gh.name}  ·  online"; }
+            }
             if (TeamA.units.Count == 0 || TeamB.units.Count == 0)
             {
                 FinishFight(Run(TeamA, TeamB, mine.seed));
@@ -181,6 +213,7 @@ namespace Kesselwerk
                 Game.Data.crystals += LastReward;
                 Game.Data.gold += Mathf.Max(0, 9 - place) * 40;
                 Game.Save();
+                if (Online.HasAccount) Online.TftResult(place, null, _ => { });
             }
         }
 

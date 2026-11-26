@@ -46,6 +46,9 @@ Player? Auth(HttpRequest req)
 
 IResult Unauthorized() => Results.Json(new { error = "Nicht angemeldet" }, statusCode: 401);
 
+// Öffentliche Bestenliste als Webseite
+app.MapGet("/", () => Results.Content(LeaderboardPage.Html, "text/html; charset=utf-8"));
+
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok", version = "1.0.0", kreaturen = CreatureDb.All.Count, spieler = store.Count }));
 
 app.MapPost("/api/v1/register", (RegisterRequest req) =>
@@ -184,6 +187,51 @@ app.MapGet("/api/v1/leaderboard", () =>
     return Results.Ok(top);
 });
 
+// ---------------- Kesselschlacht (asynchron online) ----------------
+// Jede Runde lädt das Spiel die eigene Aufstellung hoch; andere Spieler bekommen diese als Gegner („Geister“).
+var ghosts = new GhostStore(dataDir);
+
+app.MapPut("/api/v1/tft/board", (HttpRequest r, BoardRequest req) =>
+{
+    var p = Auth(r); if (p == null) return Unauthorized();
+    if (req == null || req.units == null || req.units.Count == 0) return Results.BadRequest(new { error = "Leeres Feld" });
+    if (req.stage < 1 || req.stage > 12 || req.round < 1 || req.round > Tft.RoundsPerStage) return Results.BadRequest(new { error = "Ungültige Runde" });
+    var team = ToTeam(req.units);
+    if (!team.IsValid(out var err)) return Results.BadRequest(new { error = err });
+    foreach (var u in req.units)
+        if (u.hex < 0 || u.stars < 1 || u.stars > 3 || u.level != Tft.LevelForStar(u.stars)) return Results.BadRequest(new { error = "Ungültige Einheit" });
+    if (req.units.Count > Tft.MaxLevel) return Results.BadRequest(new { error = "Zu viele Einheiten" });
+    ghosts.Add($"{req.stage}-{req.round}", new Ghost { playerId = p.id, name = p.name, units = req.units, time = DateTime.UtcNow });
+    return Results.Ok(new { ok = true });
+});
+
+app.MapGet("/api/v1/tft/ghosts", (HttpRequest r, int stage, int round) =>
+{
+    var p = Auth(r); if (p == null) return Unauthorized();
+    var list = ghosts.Pick($"{stage}-{round}", p.id, 7);
+    return Results.Ok(list.Select(g => new { name = g.name, units = g.units }));
+});
+
+app.MapPost("/api/v1/tft/result", (HttpRequest r, ResultRequest req) =>
+{
+    var p = Auth(r); if (p == null) return Unauthorized();
+    int place = Math.Clamp(req?.place ?? 8, 1, 8);
+    p.tftGames++;
+    if (place == 1) p.tftWins++;
+    if (place <= 4) p.tftTop4++;
+    p.tftPoints += 9 - place;
+    store.Put(p);
+    return Results.Ok(new { ok = true, punkte = p.tftPoints });
+});
+
+app.MapGet("/api/v1/tft/leaderboard", () =>
+{
+    var top = store.All().Where(p => p.tftGames > 0)
+        .OrderByDescending(p => p.tftPoints).ThenByDescending(p => p.tftWins).Take(50)
+        .Select((p, i) => new { platz = i + 1, name = p.name, punkte = p.tftPoints, siege = p.tftWins, top4 = p.tftTop4, partien = p.tftGames });
+    return Results.Ok(top);
+});
+
 // ---------------- Kampagne prüfen ----------------
 app.MapPost("/api/battle/verify", (VerifyRequest req) =>
 {
@@ -248,6 +296,53 @@ static Match Bot(int rating, Random rnd)
 // =====================================================================
 
 class RegisterRequest { public string? name { get; set; } }
+class BoardRequest { public int stage { get; set; } public int round { get; set; } public List<UnitSpec>? units { get; set; } }
+class ResultRequest { public int place { get; set; } }
+class Ghost { public string playerId { get; set; } = ""; public string name { get; set; } = ""; public List<UnitSpec> units { get; set; } = new(); public DateTime time { get; set; } }
+
+/// <summary>Aufstellungen je Runde (je Spieler nur die neueste, höchstens 300 je Runde), als JSON-Datei gesichert.</summary>
+class GhostStore
+{
+    readonly string file;
+    readonly object gate = new();
+    readonly Dictionary<string, List<Ghost>> byRound;
+    static readonly JsonSerializerOptions opts = new() { IncludeFields = true };
+    DateTime lastWrite = DateTime.MinValue;
+
+    public GhostStore(string dir)
+    {
+        file = Path.Combine(dir, "tft_ghosts.json");
+        try { byRound = File.Exists(file) ? JsonSerializer.Deserialize<Dictionary<string, List<Ghost>>>(File.ReadAllText(file), opts) ?? new() : new(); }
+        catch { byRound = new(); }
+    }
+
+    public void Add(string key, Ghost g)
+    {
+        lock (gate)
+        {
+            if (!byRound.TryGetValue(key, out var list)) byRound[key] = list = new List<Ghost>();
+            list.RemoveAll(x => x.playerId == g.playerId);
+            list.Add(g);
+            if (list.Count > 300) list.RemoveAt(0);
+            if ((DateTime.UtcNow - lastWrite).TotalSeconds > 20)
+            {
+                lastWrite = DateTime.UtcNow;
+                string tmp = file + ".tmp";
+                File.WriteAllText(tmp, JsonSerializer.Serialize(byRound, opts));
+                File.Move(tmp, file, true);
+            }
+        }
+    }
+
+    public List<Ghost> Pick(string key, string exceptPlayer, int n)
+    {
+        lock (gate)
+        {
+            if (!byRound.TryGetValue(key, out var list)) return new List<Ghost>();
+            return list.Where(g => g.playerId != exceptPlayer).OrderBy(_ => Random.Shared.Next()).Take(n).ToList();
+        }
+    }
+}
 class TeamRequest { public List<UnitSpec>? units { get; set; } }
 class FightRequest { public string? matchId { get; set; } public List<UnitSpec>? units { get; set; } }
 class VerifyRequest
@@ -272,6 +367,10 @@ class Player
     public int defLosses { get; set; }
     public int defensePower { get; set; }
     public List<UnitSpec>? defense { get; set; }
+    public int tftGames { get; set; }
+    public int tftWins { get; set; }
+    public int tftTop4 { get; set; }
+    public int tftPoints { get; set; }
     public DateTime created { get; set; }
     public DateTime? lastSave { get; set; }
 }
@@ -347,4 +446,36 @@ class RateLimiter
         var v = hits.AddOrUpdate(key, (now, 1), (_, old) => now - old.start > TimeSpan.FromMinutes(1) ? (now, 1) : (old.start, old.count + 1));
         return v.count <= perMinute;
     }
+}
+
+
+static class LeaderboardPage
+{
+    public const string Html = """
+<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kesselwerk – Bestenliste</title>
+<style>
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:radial-gradient(circle at 30% 0%,#1f3a2a,#0b1210 70%);color:#eef3f6;min-height:100vh}
+main{max-width:760px;margin:0 auto;padding:40px 18px}
+h1{font-size:44px;letter-spacing:8px;font-style:italic;margin:0}
+.sub{color:#ffd98c;letter-spacing:4px;font-size:13px;margin:6px 0 28px;border-top:3px solid #ffb84d;display:inline-block;padding-top:8px}
+table{width:100%;border-collapse:separate;border-spacing:0 6px}
+th{font-size:12px;letter-spacing:3px;color:#9fb3c2;text-align:left;padding:0 14px}
+td{background:rgba(14,18,24,.78);padding:12px 14px;border-top:1px solid rgba(255,255,255,.1);border-bottom:1px solid rgba(255,255,255,.1)}
+td:first-child{border-left:5px solid #73d9ff;border-radius:8px 0 0 8px;font-weight:700}
+td:last-child{border-radius:0 8px 8px 0}
+tr.g td:first-child{border-left-color:#ffd23f} tr.s td:first-child{border-left-color:#d7dde6} tr.b td:first-child{border-left-color:#d98a4b}
+.n{font-weight:600}.p{font-weight:700;color:#ffd98c}.e{color:#9fb3c2;text-align:center;padding:40px}
+</style></head><body><main>
+<h1>KESSELWERK</h1><div class="sub">BESTENLISTE · KESSELSCHLACHT</div>
+<table><thead><tr><th>#</th><th>NAME</th><th>PUNKTE</th><th>SIEGE</th><th>TOP 4</th><th>PARTIEN</th></tr></thead><tbody id="b"><tr><td colspan="6" class="e">Lade …</td></tr></tbody></table>
+<p style="color:#9fb3c2;font-size:13px">Punkte je Partie: Platz 1 = 8 … Platz 8 = 1. Aktualisiert sich jede Minute.</p>
+</main><script>
+async function load(){try{const r=await fetch('/api/v1/tft/leaderboard');const d=await r.json();const b=document.getElementById('b');
+if(!d.length){b.innerHTML='<tr><td colspan="6" class="e">Noch keine Partien gewertet.</td></tr>';return}
+b.innerHTML=d.map(e=>`<tr class="${e.platz==1?'g':e.platz==2?'s':e.platz==3?'b':''}"><td>${e.platz}</td><td class="n"></td><td class="p">${e.punkte}</td><td>${e.siege}</td><td>${e.top4}</td><td>${e.partien}</td></tr>`).join('');
+[...b.querySelectorAll('td.n')].forEach((td,i)=>td.textContent=d[i].name);}catch(e){}}
+load();setInterval(load,60000);
+</script></body></html>
+""";
 }

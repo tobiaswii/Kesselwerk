@@ -246,6 +246,7 @@ namespace Kesselwerk
                 ("Beschwören", new Color(0.75f, 0.5f, 1f), MenuPage.Summon, null),
                 ("Sammlung", new Color(0.45f, 0.75f, 1f), MenuPage.Collection, null),
                 ("Aufgaben", new Color(1f, 0.55f, 0.35f), null, ShowTasks),
+                ("Bestenliste", new Color(0.4f, 0.9f, 0.55f), null, ShowTftBoard),
                 ("Einstellungen", new Color(0.65f, 0.7f, 0.78f), MenuPage.Settings, null),
             };
             int cols = P ? 2 : 1;
@@ -278,6 +279,29 @@ namespace Kesselwerk
             int open = 0;
             for (int i = 0; i < 3; i++) if (!D.taskClaimed[i] && Progress.TaskProgress(D, i) >= Progress.TaskGoal[i]) open++;
             if (open > 0) Toast($"{open} Aufgabe(n) abholbereit!");
+        }
+
+        /// <summary>Öffentliche Bestenliste der Kesselschlacht (Punkte: Platz 1 = 8 … Platz 8 = 1).</summary>
+        public void ShowTftBoard()
+        {
+            var panel = OpenOverlay("Bestenliste · Kesselschlacht", new Vector2(900f, 1000f));
+            var info = UIKit.Text(panel, "Laden", "Lade …", 28f, UIKit.TextDim, TextAlignmentOptions.Top);
+            info.rectTransform.anchorMin = new Vector2(0f, 1f); info.rectTransform.anchorMax = new Vector2(1f, 1f); info.rectTransform.pivot = new Vector2(0.5f, 1f);
+            info.rectTransform.anchoredPosition = new Vector2(0f, -150f); info.rectTransform.sizeDelta = new Vector2(-60f, 760f);
+            Online.TftLeaderboard(list =>
+            {
+                if (info == null) return;
+                if (list == null || list.Count == 0) { info.text = "Noch keine Partien gewertet – spiel eine Kesselschlacht!"; return; }
+                var sb = new System.Text.StringBuilder("<mspace=0.6em>#   </mspace>NAME<pos=55%>PUNKTE<pos=72%>SIEGE<pos=86%>TOP 4\n");
+                foreach (var e in list)
+                {
+                    bool me = Online.Me != null && e.name == Online.Me.name;
+                    string c = me ? "#7dffb0" : e.platz <= 3 ? "#ffd23f" : "#ffffff";
+                    sb.Append($"<color={c}>{e.platz,2}.  {e.name}<pos=55%>{e.punkte}<pos=72%>{e.siege}<pos=86%>{e.top4}</color>\n");
+                }
+                info.text = sb.ToString();
+                info.alignment = TextAlignmentOptions.TopLeft;
+            }, err => { if (info != null) info.text = "Bestenliste nicht erreichbar: " + err; });
         }
 
         public void ShowTasks()

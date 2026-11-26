@@ -702,6 +702,7 @@ namespace Kesselwerk.Core
                     foreach (var t in Allies(a))
                     {
                         float v = t.maxHp * 0.12f + a.CurrentAtk * s.power;
+                        v *= FatigueHeal;
                         t.shield += v;
                         Emit(EvType.Shield, a.uid, t.uid, MathK.RoundToInt(v));
                     }
@@ -711,6 +712,7 @@ namespace Kesselwerk.Core
                 {
                     ev.target = a.uid; events.Add(ev);
                     float v = a.maxHp * 0.25f * s.power;
+                    v *= FatigueHeal;
                     a.shield += v;
                     a.tauntTurns = s.duration;
                     Emit(EvType.Shield, a.uid, a.uid, MathK.RoundToInt(v));
@@ -760,7 +762,7 @@ namespace Kesselwerk.Core
             }
 
             float elem = ElementChart.Multiplier(a.def.element, t.def.element);
-            float dmg = a.CurrentAtk * power * DamageScale * (100f / (100f + Math.Max(0f, t.CurrentDef)));
+            float dmg = a.CurrentAtk * power * DamageScale * (100f / (100f + Math.Max(0f, t.CurrentDef))) * FatigueDmg;
             float elemMul = elem;
             if (elem > 1f && a.def.passive == Passive.Elementkraft) elemMul += 0.15f;
             dmg *= elemMul;
@@ -835,10 +837,15 @@ namespace Kesselwerk.Core
             t.damageTaken += value;
         }
 
+        /// <summary>Erschöpfung: lange Kämpfe werden ab Aktion 60 immer tödlicher (verhindert Patt-Situationen).</summary>
+        public const int FatigueStart = 40;
+        float FatigueDmg => (units.Count > 0 && units[0].pos >= 0 ? 1.4f : 1f) * (actions <= FatigueStart ? 1f : 1f + (actions - FatigueStart) * 0.05f);
+        float FatigueHeal => actions <= FatigueStart ? 1f : Math.Max(0.1f, 1f - (actions - FatigueStart) * 0.03f);
+
         void Heal(BattleUnit a, BattleUnit t, float amount, bool emitAlways)
         {
             if (!t.Alive) return;
-            float v = amount * t.healTakenMul * (t.poisonStacks > 0 ? 0.7f : 1f);
+            float v = amount * t.healTakenMul * (t.poisonStacks > 0 ? 0.7f : 1f) * FatigueHeal;
             float real = Math.Min(v, t.maxHp - t.hp);
             if (real <= 0f && !emitAlways) return;
             t.hp += Math.Max(0f, real);

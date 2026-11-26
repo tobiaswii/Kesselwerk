@@ -47,6 +47,7 @@ namespace Kesselwerk
             Refresh();
             Sound.Music(true);
             if (!string.IsNullOrEmpty(TftSession.Report)) Toast(TftSession.Report);
+            TftSession.FetchGhosts(() => { if (this != null) Refresh(); });
             if (G.Over) ShowGameOver();
         }
 
@@ -97,12 +98,15 @@ namespace Kesselwerk
         void MakeTag(TftUnit u)
         {
             var tag = UIKit.Rect("Sterne", tagLayer);
-            tag.sizeDelta = new Vector2(80f, 20f);
+            tag.sizeDelta = new Vector2(24f * u.star + 14f, 28f);
+            var bg = UIKit.Img(tag, "Grund", UIKit.Rounded, new Color(0.04f, 0.05f, 0.07f, 0.75f));
+            UIKit.Stretch(bg.rectTransform);
+            Color c = u.star == 3 ? new Color(1f, 0.8f, 0.2f) : u.star == 2 ? new Color(0.85f, 0.9f, 1f) : new Color(0.85f, 0.55f, 0.3f);
             for (int i = 0; i < u.star; i++)
             {
-                var d = UIKit.Img(tag, "Stern", null, u.star == 3 ? new Color(1f, 0.8f, 0.2f) : u.star == 2 ? new Color(0.8f, 0.85f, 0.95f) : new Color(0.75f, 0.5f, 0.3f));
-                d.rectTransform.sizeDelta = new Vector2(14f, 14f);
-                d.rectTransform.anchoredPosition = new Vector2((i - (u.star - 1) * 0.5f) * 18f, 0f);
+                var d = UIKit.Img(tag, "Stern", null, c);
+                d.rectTransform.sizeDelta = new Vector2(13f, 13f);
+                d.rectTransform.anchoredPosition = new Vector2((i - (u.star - 1) * 0.5f) * 24f, 0f);
                 d.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 45f);
             }
             starTags[u.uid] = tag;
@@ -338,7 +342,8 @@ namespace Kesselwerk
             TftSession.Save();
             var me = Me;
             bool creep = Tft.IsCreepRound(G.stage, G.round);
-            roundText.text = $"RUNDE {G.RoundName}  ·  {(creep ? "WILDE MONSTER" : "GEGEN SPIELER")}  ·  PLANUNG";
+            int gh = TftSession.GhostCount;
+            roundText.text = $"RUNDE {G.RoundName}  ·  {(creep ? "WILDE MONSTER" : "GEGEN SPIELER")}  ·  PLANUNG" + (gh > 0 && !creep ? $"  ·  <color=#7dffb0>{gh} ONLINE</color>" : "");
             goldText.text = $"{me.gold} <size=55%>GOLD</size>";
             int need = me.level < Tft.MaxLevel ? Tft.XpToNext[me.level] : 0;
             levelText.text = $"STUFE {me.level}  <size=70%><color=#c7d0da>{(need > 0 ? $"{me.xp}/{need} EP" : "MAX")}</color></size>";
@@ -476,7 +481,7 @@ namespace Kesselwerk
         {
             G.AutoTurn(Me);
             Sync(); Refresh();
-            return $"ok Stufe {Me.level}, Feld {Me.BoardCount}, Gold {Me.gold}";
+            return $"ok Stufe {Me.level}, Feld {Me.BoardCount}, Gold {Me.gold}, Abzeichen {starTags.Count}, Ansichten {views.Count}";
         }
         public void DebugFight() => StartFight();
     }
