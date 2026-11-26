@@ -18,8 +18,8 @@ namespace Kesselwerk
                 return;
             }
 
-            if (Object.FindFirstObjectByType<BattleManager>() == null)
-                new GameObject("BattleManager").AddComponent<BattleManager>();
+            if (Object.FindFirstObjectByType<BattleManager>() == null && Object.FindFirstObjectByType<MenuManager>() == null)
+                GameFlow.ToMenu();
         }
 
         static bool TextMeshProReady()

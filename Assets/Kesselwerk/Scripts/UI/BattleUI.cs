@@ -137,6 +137,13 @@ namespace Kesselwerk
             hpRt.anchorMin = hpRt.anchorMax = new Vector2(1f, 0.5f);
             hpRt.anchoredPosition = new Vector2(-80f, 0f);
             enemyHp = hpBadge;
+
+            var menu = UIKit.Button(topBar, "Menue", "Menü", new Color(0.35f, 0.33f, 0.4f), () => bm.OnMenuButton(), 30f);
+            var mrt = (RectTransform)menu.transform;
+            mrt.anchorMin = mrt.anchorMax = new Vector2(1f, 0.5f);
+            mrt.pivot = new Vector2(1f, 0.5f);
+            mrt.anchoredPosition = new Vector2(-150f, 0f);
+            mrt.sizeDelta = new Vector2(170f, 76f);
         }
 
         void BuildBottomArea()
@@ -604,16 +611,36 @@ namespace Kesselwerk
             CloseOverlay();
         }
 
-        public void ShowGameOver(string text, bool won, Action onRestart)
+        public void ShowGameOver(string text, bool won, string reward, Action onRestart, Action onMenu)
         {
             var content = OpenOverlay(null, false);
             var t = UIKit.Text(content, "Ergebnis", text, 120f, won ? Gold : new Color(1f, 0.4f, 0.35f), TextAlignmentOptions.Center, true);
-            t.rectTransform.anchorMin = new Vector2(0f, 0.5f);
-            t.rectTransform.anchorMax = new Vector2(1f, 0.7f);
+            t.rectTransform.anchorMin = new Vector2(0f, 0.55f);
+            t.rectTransform.anchorMax = new Vector2(1f, 0.72f);
             t.rectTransform.offsetMin = t.rectTransform.offsetMax = Vector2.zero;
             t.outlineWidth = 0.25f;
             t.outlineColor = new Color32(0, 0, 0, 220);
-            OverlayButton(content, "Neues Spiel", new Color(0.85f, 0.55f, 0.1f), 0.5f, () => { CloseOverlay(); onRestart?.Invoke(); });
+
+            var r = UIKit.Text(content, "Belohnung", reward, 64f, new Color(1f, 0.85f, 0.3f), TextAlignmentOptions.Center, true);
+            r.rectTransform.anchorMin = new Vector2(0f, 0.44f);
+            r.rectTransform.anchorMax = new Vector2(1f, 0.54f);
+            r.rectTransform.offsetMin = r.rectTransform.offsetMax = Vector2.zero;
+            r.outlineWidth = 0.25f;
+            r.outlineColor = new Color32(0, 0, 0, 220);
+
+            OverlayButton(content, "Nochmal", new Color(0.85f, 0.55f, 0.1f), 0.3f, () => { CloseOverlay(); onRestart?.Invoke(); });
+            OverlayButton(content, "Zum Menü", new Color(0.35f, 0.33f, 0.4f), 0.7f, () => { CloseOverlay(); onMenu?.Invoke(); });
+        }
+
+        public void ShowConfirm(string title, string text, string confirmLabel, Action onConfirm)
+        {
+            var content = OpenOverlay(title, true);
+            var t = UIKit.Text(content, "Text", text, 48f, Color.white, TextAlignmentOptions.Center);
+            t.rectTransform.anchorMin = new Vector2(0f, 0.45f);
+            t.rectTransform.anchorMax = new Vector2(1f, 0.6f);
+            t.rectTransform.offsetMin = t.rectTransform.offsetMax = Vector2.zero;
+            OverlayButton(content, confirmLabel, new Color(0.8f, 0.2f, 0.15f), 0.3f, () => { CloseOverlay(); onConfirm?.Invoke(); });
+            OverlayButton(content, "Weiterspielen", new Color(0.35f, 0.33f, 0.4f), 0.7f, CloseOverlay);
         }
 
         // ------------------------------------------------------------------

@@ -82,7 +82,9 @@ namespace Kesselwerk
             ui.CloseOverlay();
             foreach (var c in FindObjectsByType<Creature>(FindObjectsSortMode.None)) Destroy(c.gameObject);
 
-            Player = new Side { name = "Du", isPlayer = true, deck = CardDatabase.BuildDeck() };
+            var profile = PlayerProfile.Current;
+            var myDeck = profile.DeckComplete ? CardDatabase.BuildDeck(profile.deck) : CardDatabase.BuildDeck();
+            Player = new Side { name = "Du", isPlayer = true, deck = myDeck };
             Enemy = new Side { name = "Gegner", isPlayer = false, deck = CardDatabase.BuildDeck() };
             for (int i = 0; i < StartHand; i++) { Draw(Player); Draw(Enemy); }
 
@@ -143,6 +145,12 @@ namespace Kesselwerk
 
             SetPhase(Phase.Main);
             ui.Banner("Hauptphase");
+        }
+
+        public void OnMenuButton()
+        {
+            if (CurrentPhase == Phase.GameOver) { GameFlow.ToMenu(); return; }
+            ui.ShowConfirm("Kampf aufgeben?", "Du bekommst keine Belohnung.", "Aufgeben", () => GameFlow.ToMenu());
         }
 
         public void OnMainButton()
@@ -458,7 +466,15 @@ namespace Kesselwerk
             ui.RefreshAll();
             bool won = Enemy.hp <= 0 && Player.hp > 0;
             string text = Player.hp <= 0 && Enemy.hp <= 0 ? "Unentschieden!" : won ? "Gewonnen!" : "Verloren!";
-            ui.ShowGameOver(text, won, NewGame);
+
+            // Belohnung
+            var profile = PlayerProfile.Current;
+            int reward = won ? PlayerProfile.WinGold : PlayerProfile.LossGold;
+            profile.gold += reward;
+            if (won) profile.wins++; else profile.losses++;
+            profile.Save();
+
+            ui.ShowGameOver(text, won, $"+{reward} Gold", NewGame, GameFlow.ToMenu);
             return true;
         }
 
