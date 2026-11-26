@@ -51,7 +51,7 @@ namespace Kesselwerk
             c.homeRot = root.transform.rotation;
             c.bobSeed = Random.Range(0f, 10f);
 
-            float targetHeight = Mathf.Min(1.0f + card.cost * 0.1f, 1.6f);
+            float targetHeight = Mathf.Min(1.35f + card.cost * 0.1f, 2.1f);
             var model = MonsterModel.Load(card, root.transform, targetHeight, out var animator, out var clips);
             if (model != null)
             {
@@ -66,6 +66,13 @@ namespace Kesselwerk
                 c.BuildPrimitiveBody();
             }
             c.CollectMaterials();
+
+            // Seltene Monster bekommen eine funkelnde Aura
+            if (card.rarity != Rarity.Common)
+            {
+                Color rc = CardData.RarityColor(card.rarity) * (card.rarity == Rarity.Legendary ? 3f : 2.2f);
+                Fx.Aura(root.transform, rc, 0.55f + (int)card.rarity * 0.12f, c.Height);
+            }
             return c;
         }
 
@@ -133,8 +140,15 @@ namespace Kesselwerk
         {
             animating = true;
             transform.position = home;
+            Color rc = CardData.RarityColor(card.rarity);
             Fx.Burst(home + Vector3.up * 0.2f, card.color * 2f, 40, 3.5f, 0.22f, 0.7f, -0.3f);
             Fx.Ring(home + Vector3.up * 0.05f, card.color * 2.5f);
+            Fx.Pillar(home, (card.rarity == Rarity.Common ? card.color : rc) * 2.5f, Height, 40 + (int)card.rarity * 40);
+            if (card.rarity == Rarity.Legendary)
+            {
+                Fx.Ring(home + Vector3.up * 0.1f, rc * 3f);
+                Fx.Burst(home + Vector3.up * Height * 0.6f, rc * 3f, 90, 6f, 0.3f, 1f, 0.2f);
+            }
             float t = 0f;
             while (t < 1f)
             {
@@ -165,6 +179,7 @@ namespace Kesselwerk
             }
 
             float attackLen = anim != null ? anim.Play(MonsterAnimator.AttackKeys, false) : 0f;
+            StartTrail();
 
             Vector3 end = Vector3.Lerp(home, target, hasModel ? 0.62f : 0.75f);
             end.y = home.y;
@@ -198,8 +213,39 @@ namespace Kesselwerk
             }
             transform.position = home;
             transform.rotation = homeRot;
+            StopTrail();
             if (anim != null && !IsDead) anim.PlayIdle();
             animating = false;
+        }
+
+        GameObject trailGo;
+
+        void StartTrail()
+        {
+            if (trailGo != null) return;
+            trailGo = new GameObject("Spur");
+            trailGo.transform.SetParent(transform, false);
+            trailGo.transform.localPosition = new Vector3(0f, Height * 0.5f, 0f);
+            var tr = trailGo.AddComponent<TrailRenderer>();
+            tr.sharedMaterial = Fx.AdditiveMaterial;
+            tr.time = 0.22f;
+            tr.widthMultiplier = Height * 0.55f;
+            tr.widthCurve = AnimationCurve.Linear(0f, 1f, 1f, 0f);
+            Color c = (card.rarity == Rarity.Common ? card.color : CardData.RarityColor(card.rarity)) * 2f;
+            var g = new Gradient();
+            g.SetKeys(new[] { new GradientColorKey(c, 0f), new GradientColorKey(c, 1f) },
+                      new[] { new GradientAlphaKey(0.7f, 0f), new GradientAlphaKey(0f, 1f) });
+            tr.colorGradient = g;
+            tr.minVertexDistance = 0.05f;
+        }
+
+        void StopTrail()
+        {
+            if (trailGo == null) return;
+            var tr = trailGo.GetComponent<TrailRenderer>();
+            if (tr != null) tr.emitting = false;
+            Destroy(trailGo, 0.4f);
+            trailGo = null;
         }
 
         public IEnumerator HitFlash()

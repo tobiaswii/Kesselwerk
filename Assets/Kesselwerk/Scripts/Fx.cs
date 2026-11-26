@@ -9,6 +9,8 @@ namespace Kesselwerk
         static Material additive;
         static Texture2D softDot;
 
+        public static Material AdditiveMaterial => Additive;
+
         static Material Additive
         {
             get
@@ -155,6 +157,192 @@ namespace Kesselwerk
 
             ps.Play();
             return ps;
+        }
+
+        static void Stretched(ParticleSystem ps, float velocityScale, float lengthScale)
+        {
+            var r = ps.GetComponent<ParticleSystemRenderer>();
+            r.renderMode = ParticleSystemRenderMode.Stretch;
+            r.velocityScale = velocityScale;
+            r.lengthScale = lengthScale;
+        }
+
+        static void FadeOut(ParticleSystem ps)
+        {
+            var col = ps.colorOverLifetime;
+            col.enabled = true;
+            var g = new Gradient();
+            g.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                      new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 0.6f), new GradientAlphaKey(0f, 1f) });
+            col.color = new ParticleSystem.MinMaxGradient(g);
+        }
+
+        /// <summary>Lichtsäule (Beschwörung).</summary>
+        public static void Pillar(Vector3 pos, Color color, float height, int count = 60)
+        {
+            var ps = Create("FX_Saeule", pos);
+            var main = ps.main;
+            main.duration = 0.3f;
+            main.loop = false;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.35f, 0.7f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(height * 2f, height * 4f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.08f, 0.2f);
+            main.startColor = color;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.stopAction = ParticleSystemStopAction.Destroy;
+            var em = ps.emission;
+            em.rateOverTime = 0f;
+            em.SetBursts(new[] { new ParticleSystem.Burst(0f, (short)count) });
+            var shape = ps.shape;
+            shape.shapeType = ParticleSystemShapeType.Circle;
+            shape.radius = 0.6f;
+            shape.rotation = new Vector3(-90f, 0f, 0f);
+            Stretched(ps, 0.12f, 2f);
+            FadeOut(ps);
+            ps.Play();
+        }
+
+        /// <summary>Dauerhafte Funken-Aura um seltene Monster (wandert mit).</summary>
+        public static ParticleSystem Aura(Transform parent, Color color, float radius, float height)
+        {
+            var ps = Create("FX_Aura", parent.position);
+            ps.transform.SetParent(parent, true);
+            var main = ps.main;
+            main.loop = true;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.8f, 1.6f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.2f, 0.6f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.14f);
+            main.startColor = color;
+            main.simulationSpace = ParticleSystemSimulationSpace.Local;
+            var em = ps.emission;
+            em.rateOverTime = 10f + radius * 6f;
+            var shape = ps.shape;
+            shape.shapeType = ParticleSystemShapeType.Circle;
+            shape.radius = radius;
+            shape.rotation = new Vector3(-90f, 0f, 0f);
+            var vel = ps.velocityOverLifetime;
+            vel.enabled = true;
+            vel.space = ParticleSystemSimulationSpace.Local;
+            vel.x = new ParticleSystem.MinMaxCurve(0f, 0f);
+            vel.y = new ParticleSystem.MinMaxCurve(height * 0.4f, height * 0.9f);
+            vel.z = new ParticleSystem.MinMaxCurve(0f, 0f);
+            var sol = ps.sizeOverLifetime;
+            sol.enabled = true;
+            sol.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.EaseInOut(0f, 1f, 1f, 0f));
+            ps.Play();
+            return ps;
+        }
+
+        /// <summary>Gerichtete Funkenstreifen (Treffer).</summary>
+        public static void Sparks(Vector3 pos, Color color, Vector3 direction, int count = 30)
+        {
+            var ps = Create("FX_Funken", pos);
+            ps.transform.rotation = Quaternion.LookRotation(direction.sqrMagnitude > 0.001f ? direction : Vector3.up);
+            var main = ps.main;
+            main.duration = 0.2f;
+            main.loop = false;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.15f, 0.35f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(5f, 11f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.12f);
+            main.startColor = color;
+            main.gravityModifier = 1.5f;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.stopAction = ParticleSystemStopAction.Destroy;
+            var em = ps.emission;
+            em.rateOverTime = 0f;
+            em.SetBursts(new[] { new ParticleSystem.Burst(0f, (short)count) });
+            var shape = ps.shape;
+            shape.shapeType = ParticleSystemShapeType.Cone;
+            shape.angle = 40f;
+            shape.radius = 0.1f;
+            Stretched(ps, 0.06f, 1.5f);
+            ps.Play();
+
+            // Heller Blitz am Einschlag
+            Burst(pos, color * 1.5f, 6, 0.5f, 0.9f, 0.18f, 0f);
+        }
+
+        /// <summary>Feuer-/Energiewelle über eine Reihe (Schaden an allen).</summary>
+        public static void Wave(Vector3 center, float width, Color color)
+        {
+            var ps = Create("FX_Welle", center);
+            var main = ps.main;
+            main.duration = 0.4f;
+            main.loop = false;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.4f, 0.9f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(1f, 3f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.2f, 0.5f);
+            main.startColor = color;
+            main.gravityModifier = -0.6f;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.stopAction = ParticleSystemStopAction.Destroy;
+            var em = ps.emission;
+            em.rateOverTime = 0f;
+            em.SetBursts(new[] { new ParticleSystem.Burst(0f, 120), new ParticleSystem.Burst(0.15f, 80) });
+            var shape = ps.shape;
+            shape.shapeType = ParticleSystemShapeType.Box;
+            shape.scale = new Vector3(width, 0.2f, 1.2f);
+            var sol = ps.sizeOverLifetime;
+            sol.enabled = true;
+            sol.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 1f, 1f, 0f));
+            FadeOut(ps);
+            ps.Play();
+        }
+
+        /// <summary>Zuckender Blitz zwischen zwei Punkten.</summary>
+        public static void Lightning(Vector3 from, Vector3 to, Color color)
+        {
+            var go = new GameObject("FX_Blitz");
+            var lr = go.AddComponent<LineRenderer>();
+            lr.sharedMaterial = Additive;
+            lr.positionCount = 14;
+            lr.widthMultiplier = 0.16f;
+            lr.startColor = color;
+            lr.endColor = color;
+            lr.numCapVertices = 2;
+            go.AddComponent<FxLightning>().Init(lr, from, to, color);
+            Burst(to, color, 30, 4f, 0.2f, 0.4f, 0.5f);
+        }
+    }
+}
+
+namespace Kesselwerk
+{
+    /// <summary>Lässt einen Blitz ein paar Mal zucken und dann verblassen.</summary>
+    public class FxLightning : UnityEngine.MonoBehaviour
+    {
+        UnityEngine.LineRenderer lr;
+        UnityEngine.Vector3 a, b;
+        UnityEngine.Color color;
+        float t;
+
+        public void Init(UnityEngine.LineRenderer line, UnityEngine.Vector3 from, UnityEngine.Vector3 to, UnityEngine.Color c)
+        {
+            lr = line; a = from; b = to; color = c;
+            Jitter();
+        }
+
+        void Jitter()
+        {
+            int n = lr.positionCount;
+            for (int i = 0; i < n; i++)
+            {
+                float k = i / (float)(n - 1);
+                var p = UnityEngine.Vector3.Lerp(a, b, k);
+                if (i > 0 && i < n - 1) p += UnityEngine.Random.insideUnitSphere * 0.35f;
+                lr.SetPosition(i, p);
+            }
+        }
+
+        void Update()
+        {
+            t += UnityEngine.Time.deltaTime;
+            if (UnityEngine.Time.frameCount % 3 == 0) Jitter();
+            float alpha = 1f - UnityEngine.Mathf.Clamp01((t - 0.25f) / 0.25f);
+            var c = new UnityEngine.Color(color.r, color.g, color.b, alpha);
+            lr.startColor = c;
+            lr.endColor = c;
+            if (t > 0.5f) Destroy(gameObject);
         }
     }
 }

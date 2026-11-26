@@ -12,6 +12,16 @@ namespace Kesselwerk
     public static class ArenaBuilder
     {
         public const int SlotCount = 4;
+
+        /// <summary>Tiefenunschärfe – wird von der Kamera passend zum Abstand eingestellt.</summary>
+        public static DepthOfField Dof;
+
+        public static void FocusAt(float distance)
+        {
+            if (Dof == null) return;
+            Dof.gaussianStart.Override(distance + 8f);
+            Dof.gaussianEnd.Override(distance + 35f);
+        }
         const float SlotSpacing = 2.25f;
         const float RowZ = 1.65f;
 
@@ -117,10 +127,11 @@ namespace Kesselwerk
 
             // Hintergrund weich verschwimmen lassen (gemalter Look)
             var dof = profile.Add<DepthOfField>(true);
+            Dof = dof;
             dof.mode.Override(DepthOfFieldMode.Gaussian);
             dof.gaussianStart.Override(17f);
             dof.gaussianEnd.Override(34f);
-            dof.gaussianMaxRadius.Override(1.2f);
+            dof.gaussianMaxRadius.Override(0.8f);
             dof.highQualitySampling.Override(true);
         }
 
@@ -157,9 +168,6 @@ namespace Kesselwerk
             gm.mainTextureScale = new Vector2(14f, 14f);
             if (gm.HasProperty("_Smoothness")) gm.SetFloat("_Smoothness", 0f);
 
-            // Etwas hellerer Lichtungsboden in der Mitte
-            var clearing = Prim(PrimitiveType.Cylinder, root, new Vector3(0f, 0.005f, 0f), new Vector3(10.5f, 0.005f, 11.5f), new Color(0.62f, 0.68f, 0.42f));
-            clearing.name = "Lichtung";
 
             // Plätze und Kessel freihalten
             for (int i = 0; i < SlotCount; i++) { Block(SlotPos(true, i), 1.05f); Block(SlotPos(false, i), 1.05f); }
@@ -170,7 +178,7 @@ namespace Kesselwerk
             for (float z = -3.0f; z <= 3.01f; z += 0.85f)
             {
                 var p = new Vector3(Random.Range(-0.15f, 0.15f), 0f, z);
-                NatureKit.Spawn(Pick("RockPath_Round_Small_1", "RockPath_Round_Small_2", "RockPath_Round_Small_3"), root, p, 0f);
+                NatureKit.Spawn(Pick("RockPath_Round_Small_1", "RockPath_Round_Small_2", "RockPath_Round_Small_3"), root, p, 0.75f);
             }
 
             // Plätze für Monster: leuchtende Rune-Ringe
@@ -207,7 +215,7 @@ namespace Kesselwerk
                 if (p.z < -6.5f && Mathf.Abs(p.x) < 6f) continue;
                 if (!Free(p, 0.7f)) continue;
                 Block(p, 0.7f);
-                NatureKit.Spawn(bushes[Random.Range(0, bushes.Length)], root, p, Random.Range(0.8f, 1.6f));
+                NatureKit.Spawn(bushes[Random.Range(0, bushes.Length)], root, p, Random.Range(1.0f, 1.8f));
             }
 
             // Felsen
@@ -220,18 +228,19 @@ namespace Kesselwerk
                 if (p.z < -6f && Mathf.Abs(p.x) < 5f) continue;
                 if (!Free(p, 0.8f)) continue;
                 Block(p, 0.8f);
-                NatureKit.Spawn(rocks[Random.Range(0, rocks.Length)], root, p, Random.Range(0.5f, 1.2f));
+                NatureKit.Spawn(rocks[Random.Range(0, rocks.Length)], root, p, Random.Range(0.8f, 1.6f));
             }
 
             // Gras, Blumen, Klee, Pilze und Kiesel auf der ganzen Fläche (nicht auf den Plätzen)
-            string[] small = { "Grass_Common_Short", "Grass_Common_Short", "Grass_Common_Tall", "Grass_Wispy_Tall", "Clover_1",
-                               "Flower_3_Group", "Flower_4_Group", "Flower_3_Single", "Mushroom_Common", "Pebble_Round_1", "Pebble_Round_2" };
-            for (int i = 0; i < 320; i++)
+            string[] small = { "Grass_Common_Short", "Grass_Common_Short", "Grass_Common_Short", "Grass_Common_Tall", "Grass_Wispy_Tall", "Grass_Wispy_Tall",
+                               "Clover_1", "Flower_3_Single", "Flower_3_Single", "Flower_3_Group", "Flower_4_Group", "Mushroom_Common", "Pebble_Round_1", "Pebble_Round_2" };
+            for (int i = 0; i < 260; i++)
             {
                 var p = new Vector3(Random.Range(-11f, 11f), 0f, Random.Range(-7f, 12f));
                 if (!Free(p, 0.15f)) continue;
                 string n = small[Random.Range(0, small.Length)];
-                float h = n.StartsWith("Pebble") ? 0.12f : n.StartsWith("Mushroom") ? Random.Range(0.25f, 0.4f) : Random.Range(0.25f, 0.6f);
+                float h = n.StartsWith("Pebble") ? 0.18f : n.StartsWith("Mushroom") ? Random.Range(0.25f, 0.4f)
+                        : n.Contains("Group") || n.StartsWith("Clover") ? Random.Range(0.5f, 0.8f) : Random.Range(0.3f, 0.6f);
                 NatureKit.Spawn(n, root, p, h);
             }
 
@@ -240,7 +249,7 @@ namespace Kesselwerk
             {
                 var p = new Vector3(Random.Range(-6f, 6f), 0f, Random.Range(-4.5f, 7f));
                 if (!Free(p, 0.4f)) continue;
-                NatureKit.Spawn("Mushroom_Laetiporus", root, p, Random.Range(0.3f, 0.5f));
+                NatureKit.Spawn("Mushroom_Laetiporus", root, p, Random.Range(0.35f, 0.5f));
             }
 
             // Hügel im Hintergrund (verschwinden im Nebel)
@@ -270,7 +279,7 @@ namespace Kesselwerk
             for (int i = 0; i < 9; i++)
             {
                 float a = i / 9f * Mathf.PI * 2f;
-                NatureKit.Spawn("Pebble_Round_" + (1 + i % 3), root, new Vector3(pos.x + Mathf.Cos(a) * 1.05f, 0f, pos.z + Mathf.Sin(a) * 1.05f), 0.22f);
+                NatureKit.Spawn("Pebble_Round_" + (1 + i % 3), root, new Vector3(pos.x + Mathf.Cos(a) * 1.05f, 0f, pos.z + Mathf.Sin(a) * 1.05f), 0.35f);
             }
             var pot = Prim(PrimitiveType.Sphere, root, new Vector3(pos.x, 0.6f, pos.z), new Vector3(1.4f, 1.0f, 1.4f), new Color(0.14f, 0.13f, 0.15f));
             pot.name = "Kessel";

@@ -58,6 +58,7 @@ namespace Kesselwerk
             float radius = 9.5f;
             cam.transform.position = target + new Vector3(Mathf.Cos(rad) * radius, 4.2f, Mathf.Sin(rad) * radius);
             cam.transform.LookAt(target);
+            ArenaBuilder.FocusAt(radius);
 
             cam.ResetProjectionMatrix();
             var proj = cam.projectionMatrix;

@@ -21,7 +21,7 @@ namespace Kesselwerk
             return p;
         }
 
-        /// <summary>Setzt ein Naturmodell. Höhe in Metern (0 = Originalgröße).</summary>
+        /// <summary>Setzt ein Naturmodell. Größe = längste Seite in Metern (0 = Originalgröße).</summary>
         public static GameObject Spawn(string name, Transform parent, Vector3 pos, float height, float yaw = -1f, Color? tint = null)
         {
             var prefab = Prefab(name);
@@ -43,7 +43,8 @@ namespace Kesselwerk
             if (height > 0f)
             {
                 var b = MonsterModel.CalcBounds(go);
-                if (b.size.y > 0.001f) go.transform.localScale *= height / b.size.y;
+                float size = Mathf.Max(b.size.x, Mathf.Max(b.size.y, b.size.z));
+                if (size > 0.001f) go.transform.localScale *= height / size;
                 b = MonsterModel.CalcBounds(go);
                 go.transform.position += new Vector3(0f, pos.y - b.min.y, 0f);
             }

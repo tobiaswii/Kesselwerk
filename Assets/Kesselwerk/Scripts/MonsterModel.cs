@@ -110,7 +110,7 @@ namespace Kesselwerk
                 var cam = camGo.AddComponent<Camera>();
                 cam.enabled = false;
                 cam.clearFlags = CameraClearFlags.SolidColor;
-                cam.backgroundColor = Color.Lerp(card.color, new Color(0.07f, 0.06f, 0.09f), 0.55f);
+                cam.backgroundColor = Color.Lerp(card.color, new Color(0.16f, 0.13f, 0.18f), 0.4f);
                 cam.fieldOfView = 30f;
                 cam.nearClipPlane = 0.05f;
                 cam.farClipPlane = 50f;
@@ -125,6 +125,24 @@ namespace Kesselwerk
                 Vector3 look = b.center + new Vector3(0f, h * 0.05f, 0f);
                 camGo.transform.position = look + new Vector3(0.15f * h, 0.25f * h, -dist);
                 camGo.transform.LookAt(look);
+
+                // Eigene Porträt-Lichter (Führungslicht vorne, Randlicht hinten)
+                var keyGo = new GameObject("PortraitKey");
+                keyGo.transform.SetParent(stage.transform, false);
+                keyGo.transform.position = look + new Vector3(-0.6f * h, 0.9f * h, -dist * 0.7f);
+                var key = keyGo.AddComponent<Light>();
+                key.type = LightType.Point;
+                key.color = new Color(1f, 0.95f, 0.88f);
+                key.intensity = 6f * h * h;
+                key.range = dist * 3f;
+                var rimGo = new GameObject("PortraitRim");
+                rimGo.transform.SetParent(stage.transform, false);
+                rimGo.transform.position = look + new Vector3(0.5f * h, 0.8f * h, dist * 0.6f);
+                var rim = rimGo.AddComponent<Light>();
+                rim.type = LightType.Point;
+                rim.color = Color.Lerp(card.color, Color.white, 0.4f);
+                rim.intensity = 5f * h * h;
+                rim.range = dist * 3f;
 
                 // In URP über eine Render-Anfrage rendern, sonst klassisch
                 var request = new UniversalRenderPipeline.SingleCameraRequest { destination = rt };

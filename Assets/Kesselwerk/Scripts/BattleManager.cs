@@ -336,6 +336,7 @@ namespace Kesselwerk
             var c = Creature.Spawn(card, ArenaBuilder.SlotPos(side.isPlayer, slot), side.isPlayer, slot);
             side.slots[slot] = c;
             ui.AddCreature(c);
+            if (card.rarity == Rarity.Legendary) { shakeUntil = Time.time + 0.4f; ui.Banner($"Legendär: {card.name}!", 1f); }
             yield return c.SpawnAnim();
 
             yield return ApplyOnPlay(side, c);
@@ -356,6 +357,8 @@ namespace Kesselwerk
                     side.hp = Mathf.Min(StartHp, side.hp + card.effectValue);
                     var face = ArenaBuilder.FacePos(side.isPlayer);
                     Fx.Burst(face + Vector3.up, new Color(0.4f, 2.2f, 0.7f), 30, 2.5f, 0.2f, 0.9f, -0.6f);
+                    Fx.Pillar(face, new Color(0.4f, 2.5f, 0.8f), 2f, 70);
+                    Fx.Lightning(c.transform.position + Vector3.up * c.Height * 0.7f, face + Vector3.up * 1.2f, new Color(0.5f, 2.5f, 0.9f));
                     ui.FloatText(face + Vector3.up * 1.8f, "+" + card.effectValue, new Color(0.4f, 1f, 0.5f));
                     ui.Banner($"{card.name}: +{card.effectValue} Leben", 0.9f);
                     yield return new WaitForSeconds(0.6f);
@@ -363,6 +366,7 @@ namespace Kesselwerk
 
                 case OnPlayEffect.DamageAllEnemies:
                     ui.Banner($"{card.name}: {card.effectValue} Schaden an allen!", 0.9f);
+                    Fx.Wave(new Vector3(0f, 0.2f, opp.isPlayer ? -1.65f : 1.65f), 9f, card.color * 2.5f);
                     yield return new WaitForSeconds(0.3f);
                     foreach (var t in new List<Creature>(opp.Creatures)) Damage(t, card.effectValue, new Color(2.5f, 0.9f, 0.2f));
                     yield return new WaitForSeconds(0.6f);
@@ -373,7 +377,8 @@ namespace Kesselwerk
                     if (list.Count > 0)
                     {
                         var t = list[Random.Range(0, list.Count)];
-                        ui.Banner($"{card.name} beißt {t.card.name}!", 0.9f);
+                        ui.Banner($"{card.name} trifft {t.card.name}!", 0.9f);
+                        Fx.Lightning(c.transform.position + Vector3.up * c.Height * 0.7f, t.transform.position + Vector3.up * t.Height * 0.5f, card.color * 2.5f + new Color(0.5f, 0.5f, 0.8f));
                         yield return new WaitForSeconds(0.3f);
                         Damage(t, card.effectValue, new Color(0.6f, 2.5f, 0.4f));
                         yield return new WaitForSeconds(0.6f);
@@ -413,6 +418,8 @@ namespace Kesselwerk
 
             if (target != null)
             {
+                Vector3 hit = target.transform.position + Vector3.up * target.Height * 0.5f;
+                Fx.Sparks(hit, new Color(3f, 2f, 0.8f), (target.transform.position - attacker.transform.position).normalized + Vector3.up * 0.5f);
                 Damage(target, attacker.attack, new Color(2.5f, 1.6f, 0.4f));
                 int counter = attacker.Keyword == Keyword.FirstStrike ? 0 : target.attack;
                 if (target.Keyword == Keyword.Thorns) counter += 1;
@@ -564,9 +571,10 @@ namespace Kesselwerk
             float halfBand = Mathf.Atan(Mathf.Tan(halfV) * band);
 
             // Abstand so, dass Breite (4 Plätze) und Tiefe (Kessel bis Kessel) in den freien Bereich passen
-            float distW = 5.2f / Mathf.Tan(halfH);
-            float distD = 4.6f / Mathf.Tan(halfBand);
-            float dist = Mathf.Max(11f, Mathf.Max(distW, distD));
+            float distW = 4.9f / Mathf.Tan(halfH);
+            float distD = 3.9f / Mathf.Tan(halfBand);
+            float dist = Mathf.Max(9f, Mathf.Max(distW, distD));
+            ArenaBuilder.FocusAt(dist);
 
             Vector3 target = new Vector3(0f, 0.4f, 0.1f);
             Vector3 dir = Quaternion.Euler(44f, 0f, 0f) * Vector3.back;

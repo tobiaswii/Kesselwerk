@@ -16,7 +16,7 @@ namespace Kesselwerk
     public class BattleUI : MonoBehaviour
     {
         public const float TopFrac = 0.085f;
-        public static float BottomFrac(bool portrait) => portrait ? 0.31f : 0.34f;
+        public static float BottomFrac(bool portrait) => portrait ? 0.35f : 0.38f;
 
         BattleManager bm;
         Camera cam;
@@ -267,6 +267,22 @@ namespace Kesselwerk
 
             UIKit.Anchor(topBar, 0f, 1f - TopFrac, 1f, 1f);
             UIKit.Anchor(bottomArea, 0f, 0f, 1f, BottomFrac(portrait));
+            if (portrait)
+            {
+                // Hochkant: Infozeile oben, Hand darunter über die ganze Breite
+                handArea.anchorMin = new Vector2(0f, 0f);
+                handArea.anchorMax = new Vector2(1f, 1f);
+                handArea.offsetMin = new Vector2(10f, 10f);
+                handArea.offsetMax = new Vector2(-10f, -175f);
+            }
+            else
+            {
+                // Quer: Infos links und rechts, Hand in der Mitte in voller Höhe
+                handArea.anchorMin = new Vector2(0.35f, 0f);
+                handArea.anchorMax = new Vector2(0.77f, 1f);
+                handArea.offsetMin = new Vector2(0f, 8f);
+                handArea.offsetMax = new Vector2(0f, -4f);
+            }
             RefreshHand();
         }
 
@@ -327,7 +343,7 @@ namespace Kesselwerk
             if (n == 0) return;
 
             Rect area = handArea.rect;
-            float scale = Mathf.Min(area.height * 0.96f / CardView.H, 1.4f);
+            float scale = Mathf.Min(area.height * 0.97f / CardView.H, 1.9f);
             float cardW = CardView.W * scale;
             float maxSpan = area.width - cardW;
             float step = n > 1 ? Mathf.Min(cardW * 1.04f, maxSpan / (n - 1)) : 0f;
